@@ -1,0 +1,437 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Approval workflow for service catalog product launch
+Metadata:
+  LICENSE: >-
+    MIT No Attribution
+    
+    Copyright 2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+    
+    Permission is hereby granted, free of charge, to any person obtaining a copy of this
+    software and associated documentation files (the "Software"), to deal in the Software
+    without restriction, including without limitation the rights to use, copy, modify,
+    merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+    permit persons to whom the Software is furnished to do so.
+    
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+    INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+    PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+    HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+    OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+    SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+Globals:
+  Function:
+    Timeout: 60
+Parameters:
+  ResourcePrefix:
+    ConstraintDescription: Resource prefix cannot be empty, please provide a valid resource prefix
+    Default: "aws-sample-"
+    Description: Prefix used to prepend the resources that this CloudFormation template provisions/creates
+    MaxLength: '64'
+    MinLength: '1'
+    Type: String
+Resources:
+  LinuxEC2Role:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Join ["",[!Ref ResourcePrefix, "linux-ec2-role"]]
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - servicecatalog.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: '/'      
+      Policies:
+        - PolicyName: !Join ["",[!Ref ResourcePrefix, "linux-ec2-policy"]]
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudformation:SetStackPolicy
+                  - sns:*
+                  - lambda:InvokeFunction
+                  - cloudformation:GetTemplateSummary
+                  - cloudformation:DescribeStacks
+                  - s3:GetObject
+                  - cloudformation:DescribeStackEvents
+                  - cloudformation:CreateStack
+                  - cloudformation:DeleteStack
+                  - ec2:*
+                  - servicecatalog:*
+                  - cloudformation:ValidateTemplate
+                Resource: '*'
+  EC2PricingLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Join ["",[!Ref ResourcePrefix, "ec2-pricing-lambda-exec-role"]]
+      ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: 
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: '/'
+      Policies:
+        - PolicyName: !Join ["",[!Ref ResourcePrefix, "describe-ec2"]]
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: pricing:GetProducts
+                Resource: '*'
+  AMILambdaExecRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Join ["",[!Ref ResourcePrefix, "ami-lookup-lambda-exec-role"]]
+      ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: 
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: '/'
+      Policies:
+        - PolicyName: !Join ["",[!Ref ResourcePrefix, "describe-ec2"]]
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: ec2:DescribeImages
+                Resource: '*'
+  RebaseBudgetsFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Join ["",[!Ref ResourcePrefix, "rebase-budgets-exec-role"]]
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: '/'
+      Policies:
+        - PolicyName: !Join ["",[!Ref ResourcePrefix, "lambda-budget-dynamo-sns-policy"]]
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+            - Effect: Allow
+              Action:
+              - budgets:DescribeBudget
+              - budgets:ViewBudget
+              Resource: '*'
+            - Effect: Allow
+              Action:
+              - sns:Get*
+              - sns:List*
+              - sns:Publish
+              Resource: '*'
+            - Effect: Allow
+              Action:
+              - dynamodb:*
+              Resource: 
+              - !GetAtt DynamoBudgetsTable.Arn
+              - !Join ["", [!GetAtt  DynamoBudgetsTable.Arn, "/index/*"]]
+  ProcessRequestsFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Join ["",[!Ref ResourcePrefix, "process-request-exec-role"]]
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: '/'
+      Policies:
+      - PolicyName: !Join ["",[!Ref ResourcePrefix, "lambda-dynamo-sns-budget-policy"]]
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - budgets:DescribeBudget
+            - budgets:ViewBudget
+            Resource: '*'
+          - Effect: Allow
+            Action:
+            - sns:Get*
+            - sns:List*
+            - sns:Publish
+            Resource: '*'
+          - Effect: Allow
+            Action:
+            - dynamodb:*
+            Resource: 
+            - !GetAtt DynamoBudgetsTable.Arn
+            - !Join ["", [!GetAtt  DynamoBudgetsTable.Arn, "/index/*"]]
+  SaveProdRequestFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Join ["",[!Ref ResourcePrefix, "save-request-exec-role"]]
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: '/'
+      Policies:
+      - PolicyName: lambda-dynamo-policy
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - dynamodb:*
+            Resource: 
+            - !GetAtt DynamoBudgetsTable.Arn
+            - !Join ["", [!GetAtt  DynamoBudgetsTable.Arn, "/index/*"]]
+  ApproveLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Join ["",[!Ref ResourcePrefix, "lambda-ddb-exec-role"]]
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: '/'
+      Policies:
+      - PolicyName: lambda-dynamo-policy
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - dynamodb:*
+            Resource: 
+            - !GetAtt DynamoBudgetsTable.Arn
+            - !Join ["", [!GetAtt  DynamoBudgetsTable.Arn, "/index/*"]]
+  DynamoBudgetsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Join ["",[!Ref ResourcePrefix, "budgets"]]
+      ProvisionedThroughput:
+        ReadCapacityUnits: 2
+        WriteCapacityUnits: 2
+      AttributeDefinitions:
+        - AttributeName: partitionKey
+          AttributeType: S
+        - AttributeName: rangeKey
+          AttributeType: S
+        - AttributeName: requestStatus
+          AttributeType: S
+        - AttributeName: requestTime
+          AttributeType: S
+      KeySchema:
+        - AttributeName: partitionKey
+          KeyType: HASH
+        - AttributeName: rangeKey
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+          - IndexName: query-by-request-status
+            KeySchema:
+              - AttributeName: requestStatus
+                KeyType: HASH
+              - AttributeName: requestTime
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+            ProvisionedThroughput:
+              ReadCapacityUnits: 2
+              WriteCapacityUnits: 2
+  AMILinuxLookupFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Looks up the linux ami id 
+      FunctionName: !Join ["",[!Ref ResourcePrefix, "linux-ami-lookup"]]
+      Handler: index.handler
+      Role: !GetAtt AMILambdaExecRole.Arn
+      Runtime: nodejs12.x
+      CodeUri: linux-ami-lookup/
+  EC2PricingFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Calculates the pricing of an ec2 machine (linux/windows)
+      FunctionName: !Join ["",[!Ref ResourcePrefix, "calc-ec2-pricing"]]
+      Handler: app.lambda_handler
+      Runtime: python3.7
+      CodeUri: get-ec2-pricing/ 
+      Role: !GetAtt EC2PricingLambdaRole.Arn
+  ApprovalFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      Description: triggered by api gateway to approve/decline the budget approval exception
+      FunctionName: !Join ["",[!Ref ResourcePrefix, "workflow-approver"]]
+      CodeUri: approve-request/
+      Handler: app.lambda_handler
+      Runtime: python3.7
+      Role: !GetAtt ApproveLambdaExecutionRole.Arn
+      Environment:
+        Variables:
+          BudgetsTable: !Ref DynamoBudgetsTable
+      Events:
+        ApprovalMethod:
+          Type: Api 
+          Properties:
+            RestApiId:
+              Ref: WorkflowApiGateway
+            Path: /approveRequest
+            Method: get
+  SaveProdRequestFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      Description: Saves the resource request to database
+      FunctionName: !Join ["",[!Ref ResourcePrefix, "save-request"]]
+      CodeUri: save-request/
+      Handler: app.lambda_handler
+      Runtime: python3.7
+      Role: !GetAtt SaveProdRequestFunctionRole.Arn
+      Environment:  
+        Variables:
+          BudgetsTable: !Ref DynamoBudgetsTable
+          # TopicArn: !Ref ApprovalNotificationTopic
+          ApprovalUrl: !Sub https://${WorkflowApiGateway}.execute-api.${AWS::Region}.amazonaws.com/Prod/approveRequest
+  WorkflowApiGateway:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Join ["",[!Ref ResourcePrefix, "budgets-workflow-api"]]
+      StageName: Prod
+      Cors:
+        AllowMethods: "'GET, OPTIONS'"
+        AllowOrigin: "'*'"
+  ProcessRequestsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Join ["",[!Ref ResourcePrefix, "process-requests"]]
+      Description: Processed the requests in database, triggerred periodically by cloudwatch events
+      Runtime: python3.7
+      Role: !GetAtt ProcessRequestsFunctionRole.Arn
+      Handler: app.lambda_handler
+      CodeUri: process-requests/
+      Events:
+        CWEvent:
+          Type: Schedule
+          Properties:
+            Schedule: 'rate(5 minutes)'
+            Name: !Join ["",[!Ref ResourcePrefix, "process-requests-schedule"]]
+            Description: Keeps tracks of pending requests and routes requests to approver or auto approves based on available budget
+            Enabled: True
+      Environment:  
+        Variables:
+          BudgetsTable: !Ref DynamoBudgetsTable
+  RebaseBudgetsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Join ["",[!Ref ResourcePrefix, "rebase-budgets"]]
+      Runtime: python3.7
+      Role: !GetAtt RebaseBudgetsFunctionRole.Arn
+      Handler: app.lambda_handler
+      CodeUri: rebase-budgets/
+      Environment:  
+        Variables:
+          AccountId: !Ref AWS::AccountId
+          BudgetsTable: !Ref DynamoBudgetsTable
+      Events:
+        PricingRefreshEvent:
+          Type: S3
+          Properties:
+            Bucket:
+              Ref: CostUsagePricingBucket
+            Events: s3:ObjectCreated:*
+        CWEvent:
+          Type: Schedule
+          Properties:
+            Schedule: 'cron(5 0 1 * ? *)'
+            Name: !Join ["",[!Ref ResourcePrefix, "reset-accruedApprovalSpend-schedule"]]
+            Description: calls the pricing rebase function to reset the accrued approval spend for each business entity
+            Enabled: True
+  CostUsagePricingBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Join ["",[!Ref ResourcePrefix, "cost-usage-reports"]]
+  CostUsagePricingBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref CostUsagePricingBucket
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Action:
+              - s3:GetBucketAcl
+              - s3:GetBucketPolicy
+              - s3:PutObject
+            Resource: 
+              - !Join ["", ["arn:aws:s3:::",!Ref  CostUsagePricingBucket, "/*"]]
+              - !Join ["", ["arn:aws:s3:::",!Ref  CostUsagePricingBucket]]
+            Principal:
+              Service:
+                - billingreports.amazonaws.com
+Outputs:
+  DynamoDBTable:
+    Description: "DynamoDB table where master data and requests information is saved"
+    Value: !Ref DynamoBudgetsTable
+  ApprovalApi:
+    Description: "API Gateway endpoint URL for Prod stage for Budget Approval"
+    Value: !Sub "https://${WorkflowApiGateway}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
+  CURS3BucketName:
+    Description: S3 bucket used to store Cost & Usage Report
+    Value: !Ref CostUsagePricingBucket
+  LaunchConstraintIAMRoleARN:
+    Description: IAM Role used in Service Catalog Launch Constraint
+    Value: !Ref LinuxEC2Role
+  SaveRequestLambdaARN:
+    Description: Lambda function ARN to notify approver. Will be used as a Cloudformation Custom Resource ServiceToken to save a Service Catalog Product Launch request into database
+    Value: !GetAtt SaveProdRequestFunction.Arn
+    Export: 
+      Name: 
+        !Sub "${AWS::StackName}-SaveRequestLambda"
+  LinuxAMILookupLambdaARN:
+    Description: Lambda function to lookup linux AMI Id. Will be used as a Cloudformation Custom Resource ServiceToken to lookup ami-id of the EC2 instance
+    Value: !GetAtt AMILinuxLookupFunction.Arn
+    Export: 
+      Name: 
+        !Sub "${AWS::StackName}-LinuxAMILookupLambda"
+  EC2PricingLambdaARN:
+    Description: Lambda function to get price of a ec2 instance. Will be used as a Cloudformation Custom Resource ServiceToken to fetch price of Amazon Linux EC2 Instance
+    Value: !GetAtt EC2PricingFunction.Arn
+    Export: 
+      Name: 
+        !Sub "${AWS::StackName}-EC2PricingLambda"

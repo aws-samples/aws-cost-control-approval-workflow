@@ -1,0 +1,214 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'A sample AWS Cloudformation template to demonstrate a provisioning of EC2 Linux Instance from defined list of instance types. 
+              This template has a wait condition which can be used to trigger a approval workflow. This template depends on a stack to import values 
+              that are required to lookup a linux ami id and also trigger approval workflow'
+Metadata:
+  LICENSE: >-
+    MIT No Attribution
+    
+    Copyright 2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+    
+    Permission is hereby granted, free of charge, to any person obtaining a copy of this
+    software and associated documentation files (the "Software"), to deal in the Software
+    without restriction, including without limitation the rights to use, copy, modify,
+    merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+    permit persons to whom the Software is furnished to do so.
+    
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+    INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+    PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+    HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+    OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+    SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+Parameters:
+  BusinessEntity:
+    Type: String
+    AllowedValues:
+      - business_entity_1
+      - business_entity_2
+      - business_entity_3
+      - business_entity_4
+    ConstraintDescription: must be the name of the business entity
+    Description: Name of the Business Entity
+    Default: business_entity_1
+  InstanceType:
+    AllowedValues:
+    - t2.nano
+    - t2.micro
+    - t2.small
+    - t2.medium
+    - t2.large
+    - t2.xlarge
+    - m4.large
+    - m4.xlarge
+    - m4.2xlarge
+    - m4.4xlarge
+    - m4.10xlarge
+    - c4.large
+    - c4.xlarge
+    - c4.2xlarge
+    - c4.4xlarge
+    - c4.8xlarge
+    - r3.large
+    - r3.xlarge
+    - r3.2xlarge
+    - r3.4xlarge
+    - r3.8xlarge
+    - i2.xlarge
+    - i2.2xlarge
+    - i2.4xlarge
+    - i2.8xlarge
+    - d2.xlarge
+    - d2.2xlarge
+    - d2.4xlarge
+    - d2.8xlarge
+    ConstraintDescription: must be a valid EC2 instance type.
+    Default: t2.small
+    Description: EC2 instance type
+    Type: String
+  KeyName:
+    ConstraintDescription: must be the name of an existing EC2 KeyPair.
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instances
+    Type: AWS::EC2::KeyPair::KeyName
+  SSHLocation:
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+    Default: 0.0.0.0/0
+    Description: The IP address range that can be used to SSH to the EC2 instances
+    MaxLength: '18'
+    MinLength: '9'
+    Type: String
+  UserEmail:
+    AllowedPattern: '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}'
+    ConstraintDescription: This is not a valid email id.
+    Default: "abc.xyz@email.com"
+    Description: Enter your Email ID. You will be contacted by approver for more information.
+    MaxLength: '64'
+    MinLength: '1'
+    Type: String
+Mappings:
+  AWSInstanceType2Arch:
+    t2.micro:
+      Arch: HVM64
+    t2.small:
+      Arch: HVM64
+    t2.medium:
+      Arch: HVM64
+    t2.nano:
+      Arch: HVM64
+    t2.xlarge:
+      Arch: HVM64
+    t2.large:
+      Arch: HVM64
+    t2.2xlarge:
+      Arch: HVM64
+    m4.large:
+      Arch: HVM64
+    m4.xlarge:
+      Arch: HVM64
+    m4.2xlarge:
+      Arch: HVM64
+    m4.4xlarge:
+      Arch: HVM64
+    m4.10xlarge:
+      Arch: HVM64
+    c4.large:
+      Arch: HVM64
+    c4.xlarge:
+      Arch: HVM64
+    c4.2xlarge:
+      Arch: HVM64
+    c4.4xlarge:
+      Arch: HVM64
+    c4.8xlarge:
+      Arch: HVM64
+    r3.large:
+      Arch: HVM64
+    r3.xlarge:
+      Arch: HVM64
+    r3.2xlarge:
+      Arch: HVM64
+    r3.4xlarge:
+      Arch: HVM64
+    r3.8xlarge:
+      Arch: HVM64
+    i2.xlarge:
+      Arch: HVM64
+    i2.2xlarge:
+      Arch: HVM64
+    i2.4xlarge:
+      Arch: HVM64
+    i2.8xlarge:
+      Arch: HVM64
+    d2.xlarge:
+      Arch: HVM64
+    d2.2xlarge:
+      Arch: HVM64
+    d2.4xlarge:
+      Arch: HVM64
+    d2.8xlarge:
+      Arch: HVM64
+Resources:
+  WaitHandle:
+    Type: 'AWS::CloudFormation::WaitConditionHandle'
+  WaitCondition:
+    Type: 'AWS::CloudFormation::WaitCondition'
+    Properties:
+      Handle:
+        Ref: 'WaitHandle'
+      Timeout: '43200'
+  SaveRequestFunction:
+    Type: Custom::SaveRequestFunction
+    Properties:
+      ServiceToken: 
+        !ImportValue "<name-of-stack-deployed-in-step-1>-SaveRequestLambda" # Replace with output of CloudFormation template deployed in Step 1
+      WaitUrl: !Ref WaitHandle
+      EmailID: !Ref UserEmail
+      ImageId: !GetAtt GetAMIInfo.Id
+      InstanceType: !Ref InstanceType
+      ProductName: EC2-LINUX
+      BusinessEntity: !Ref BusinessEntity
+      StackName: !Ref AWS::StackName
+      EC2Pricing: !GetAtt GetEC2PricingInfo.Pricing
+  GetAMIInfo:
+    Type: Custom::GetAMIInfo
+    Properties:
+      ServiceToken: 
+        !ImportValue "<name-of-stack-deployed-in-step-1>-LinuxAMILookupLambda" # Replace with output of CloudFormation template deployed in Step 1
+      Architecture: !FindInMap [AWSInstanceType2Arch, !Ref InstanceType, Arch]
+  GetEC2PricingInfo:
+    Type: Custom::GetEC2PricingInfo
+    Properties:
+      ServiceToken: 
+        !ImportValue "<name-of-stack-deployed-in-step-1>-EC2PricingLambda" # Replace with output of CloudFormation template deployed in Step 1
+      InstanceType: !Ref InstanceType
+      OperatingSystem: Linux
+      TermType: OnDemand
+  LinuxEC2Instance:
+    Type: AWS::EC2::Instance
+    DependsOn: 'WaitCondition'
+    Properties:
+      ImageId: !GetAtt GetAMIInfo.Id
+      InstanceType:
+        Ref: InstanceType
+      KeyName:
+        Ref: KeyName
+      SecurityGroups:
+      - Ref: LinuxEC2SecurityGroup
+      Tags:
+        - Key: business-entity
+          Value: !Ref BusinessEntity
+  LinuxEC2SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    DependsOn: 'WaitCondition'
+    Properties:
+      GroupDescription: "Enable ssh access via port 22 to specified CIDR"
+      SecurityGroupIngress:
+      - CidrIp: !Ref SSHLocation
+        FromPort: '22'
+        IpProtocol: tcp
+        ToPort: '22'
+Outputs:
+  EC2PublicIP:
+    Description: Requested EC2 public IP
+    Value: !GetAtt LinuxEC2Instance.PublicIp
