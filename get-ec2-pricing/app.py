@@ -24,7 +24,7 @@ import simplejson as json
 import logging
 import os
 import requests
-import datetime, time
+import datetime
 import calendar
 from decimal import Decimal
 
@@ -74,9 +74,11 @@ def hours_for_next_month():
     now = datetime.datetime.utcnow()
     month = now.month
     year = now.year
-    nextmonth = (month + 1) % 12
+    nextmonth = month + 1
     if month == 12:
         year = year + 1
+    if nextmonth > 12:
+        nextmonth = nextmonth % 12
     return calendar.monthrange(year, nextmonth)[1] * 24
 
 # Get total # of hrs left in current month
