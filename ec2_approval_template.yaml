@@ -194,20 +194,29 @@ Resources:
       KeyName:
         Ref: KeyName
       SecurityGroups:
-      - Ref: LinuxEC2SecurityGroup
+        - Ref: LinuxEC2SecurityGroup
       Tags:
         - Key: business-entity
           Value: !Ref BusinessEntity
   LinuxEC2SecurityGroup:
     Type: AWS::EC2::SecurityGroup
+    Metadata:
+        cfn_nag:
+          rules_to_suppress:
+            - id: W40
+              reason: 'this is a sample template demonstrating ec2 in public subnet'
     DependsOn: 'WaitCondition'
     Properties:
       GroupDescription: "Enable ssh access via port 22 to specified CIDR"
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          Description: 'allow outbound traffic'
       SecurityGroupIngress:
-      - CidrIp: !Ref SSHLocation
-        FromPort: '22'
-        IpProtocol: tcp
-        ToPort: '22'
+        - CidrIp: !Ref SSHLocation
+          Description: 'allow ssh access'
+          FromPort: '22'
+          IpProtocol: tcp
+          ToPort: '22'
 Outputs:
   EC2PublicIP:
     Description: Requested EC2 public IP
