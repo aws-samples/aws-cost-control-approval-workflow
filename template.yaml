@@ -424,7 +424,6 @@ Resources:
   CostUsagePricingBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Join ["",[!Ref ResourcePrefix, "cost-usage-reports"]]
       BucketEncryption:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
@@ -487,3 +486,9 @@ Outputs:
     Export:
       Name:
         !Sub "${AWS::StackName}-EC2PricingLambda"
+  CURS3Bucket:
+    Description: S3 Bucket to be configured with AWS Budgets CUR to store budget info
+    Value: !Ref CostUsagePricingBucket
+    Export:
+      Name:
+        !Sub "${AWS::StackName}-CURS3Bucket"
