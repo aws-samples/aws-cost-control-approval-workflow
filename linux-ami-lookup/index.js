@@ -40,7 +40,7 @@ exports.handler = function(event, context) {
     var ec2 = new aws.EC2({region: process.env.AWS_REGION});
     var describeImagesParams = {
         Filters: [{ Name: "name", Values: [archToAMINamePattern[event.ResourceProperties.Architecture]]}],
-        Owners: [event.ResourceProperties.Architecture == "HVMG2" ? "679593333241" : "amazon"]
+        Owners: [event.ResourceProperties.Architecture == "HVMG2" ? "679593333241": "amazon"]
     };
 
     // Get AMI IDs with the specified name pattern and owner

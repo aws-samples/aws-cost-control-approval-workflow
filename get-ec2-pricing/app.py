@@ -32,7 +32,7 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 region = os.environ['AWS_REGION']
 
-def lambda_handler(event,context):
+def lambda_handler(event, context):
     # Do not do anything for CFN Update and Delete
     if 'RequestType' in event and event['RequestType'] != 'Create':
         sendResponse(event, context,'SUCCESS', {})
@@ -169,7 +169,7 @@ def getPrice_from_API(oper_sys, instance_type, region, term_type):
                     'Field':'termType',
                     'Value': term_type
                 },
-                {'Type' :'TERM_MATCH', 'Field':'capacityStatus', 'Value':'Used'},
+                {'Type':'TERM_MATCH', 'Field':'capacityStatus', 'Value':'Used'},
                 {
                     'Type':'TERM_MATCH',
                     'Field':'instanceType',
@@ -186,9 +186,9 @@ def getPrice_from_API(oper_sys, instance_type, region, term_type):
             NextToken='',                  # optional
             MaxResults=20                   # optional
         )
-        if len(response['PriceList']) > 1 :
+        if len(response['PriceList']) > 1:
             logger.info("Pricing list has more than one entry, considering first entry")
-        elif len(response['PriceList']) == 0 :
+        elif len(response['PriceList']) == 0:
             logger.info("Couldn't query pricing with given filters")
         resp_json = json.loads(response['PriceList'][0])
         price = 0

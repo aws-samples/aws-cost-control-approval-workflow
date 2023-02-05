@@ -20,11 +20,10 @@
 ################################################################################
 import json
 import logging
-import base64
 import boto3
 import os
 from datetime import datetime
-from boto3.dynamodb.conditions import Key, Attr
+from boto3.dynamodb.conditions import Key
 from decimal import Decimal
 
 logger = logging.getLogger()
@@ -37,19 +36,19 @@ partition_key = 'BUDGET'
 req_partition_key = 'REQUEST'
 client = boto3.client('budgets')
 
-def lambda_handler(event,context):
+def lambda_handler(event, context):
     logger.info(json.dumps(event))
     account_id = os.environ['AccountId']
     try:
         # Fetch available business units from database
         business_entities = get_business_entities()
         # Check for request from S3
-        if 'Records' in event : 
+        if 'Records' in event: 
             for record in event['Records']:
                 key = record['s3']['object']['key']
                 # Look for manifest file only, it may be the case that there are multiple files uploaded by CUR
                 # we do not want to rebase multiple times
-                if key.split(".")[-1] == "json" :
+                if key.split(".")[-1] == "json":
                     # fetch pricing and save the data to ddb
                     logger.info("Pricing Manifest file found at {}".format(key))
                     for entity in business_entities:
@@ -64,7 +63,7 @@ def lambda_handler(event,context):
                         update_pricing_info(range_key, budget_name, budget_amt, actual_spend, forecast_spend)
             return {'statusCode':'200','body':'Successfully rebased accruedForecastSpend'}
         # Monthly rebase of accruedApprovalSpend
-        elif 'source' in event and event['source'] == 'aws.events' : 
+        elif 'source' in event and event['source'] == 'aws.events': 
             logger.info("Event received from CloudWatchRule")
             for entity in business_entities:
                 logger.info("Reset accruedApprovedSpend for business entity {}".format(entity))

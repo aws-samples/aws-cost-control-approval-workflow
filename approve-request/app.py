@@ -21,7 +21,6 @@
 import requests
 import json
 import logging
-import base64
 import boto3
 import os
 from datetime import datetime
@@ -35,13 +34,13 @@ budgets_table = dynamodb.Table(budgets_table_name)
 request_partition = 'REQUEST'
 budget_partition = 'BUDGET'
 
-def lambda_handler(event,context):
+def lambda_handler(event, context):
     logger.info(json.dumps(event))
     success_responseData = {
-    "Status" : "SUCCESS",
-    "Reason" : "Approved",
-    "UniqueId" : 'None',
-    "Data" : "Owner approved the stack creation"
+    "Status": "SUCCESS",
+    "Reason": "Approved",
+    "UniqueId": 'None',
+    "Data": "Owner approved the stack creation"
     }
     if event['queryStringParameters'] and 'requestId' in event['queryStringParameters'] and 'requestStatus' in event['queryStringParameters']:
         
@@ -59,7 +58,7 @@ def lambda_handler(event,context):
         wait_url = request['stackWaitUrl']        
         try:
             logger.info("Accruals before processing the request Blocked: {}, Forcasted: {}, Approved: {}".format(accrued_blocked, accrued_forecast, accrued_approved))
-            if request['requestStatus'] == 'PENDING' or request['requestStatus'] == 'BLOCKED' :
+            if request['requestStatus'] == 'PENDING' or request['requestStatus'] == 'BLOCKED':
                 if  request_status == "Approve":
                     success_responseData['Status'] = "SUCCESS"
                     update_approval_request_status(request_id)
@@ -121,7 +120,7 @@ def update_approval_request_status(request_id):
     logger.debug(json.dumps(response))      
 
 # Get the request item for a given request id
-def get_request_item(request_id) :
+def get_request_item(request_id):
     response = budgets_table.get_item(
         Key={'partitionKey':request_partition, 'rangeKey':request_id},
         ProjectionExpression='stackWaitUrl, requestStatus, businessEntityId, pricingInfoAtRequest'
@@ -146,7 +145,7 @@ def update_accrued_amt(business_entity_id, accruedForecastedSpend, accruedBlocke
     return True
 
 # Gets the Budget information for a given business entity Id
-def get_budgets_for_request(business_entity_id) :
+def get_budgets_for_request(business_entity_id):
     response = budgets_table.get_item(
         Key={'partitionKey':budget_partition, 'rangeKey':business_entity_id},
         ProjectionExpression='accruedForecastedSpend, accruedBlockedSpend, accruedApprovedSpend'

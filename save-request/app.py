@@ -24,7 +24,6 @@ import json
 import logging
 from datetime import datetime
 import os
-import base64
 from decimal import Decimal
 
 logger = logging.getLogger()
@@ -123,7 +122,7 @@ def update_termination_request_status(request_id):
         ':a': str(datetime.utcnow()),
         ':r': 'TERMINATED'
     }
-    if request_status == 'PENDING' or request_status == 'BLOCKED' or request_status == 'SAVED' :
+    if request_status == 'PENDING' or request_status == 'BLOCKED' or request_status == 'SAVED':
         update_expression =  update_expression+", requestStatus=:c"
         expression_attributes[':c'] = 'REJECTED_SYSTEM'
     elif request_status != 'REJECTED_ADMIN':

@@ -21,14 +21,11 @@
 import requests
 import json
 import logging
-import base64
 import boto3
 import os
 import calendar
-from decimal import Decimal
 from datetime import datetime
 from boto3.dynamodb.conditions import Key
-from urllib.parse import urlparse
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -43,16 +40,16 @@ saved_req_status = 'SAVED'
 pending_req_status = 'PENDING'
 blocked_req_status = 'BLOCKED'
 
-def lambda_handler(event,context):
+def lambda_handler(event, context):
     logger.info(json.dumps(event))
     # Get Budget Info
     budget_info = get_budget_info()
     # convert List to Dict for easier lookup
     budget_dict = {}
     update_budget_accruals = False
-    for budget in budget_info : 
+    for budget in budget_info: 
         business_entity = budget['businessEntity']
-        if not budget['budgetForecastProcessed'] :
+        if not budget['budgetForecastProcessed']:
             logger.info("New Forecast Available for {}, replacing the accruedForecast with forecast from AWS budgets".format(business_entity))
             budget['accruedForecastedSpend'] = budget['forecastedSpend']
             update_budget_accruals = True
@@ -65,14 +62,14 @@ def lambda_handler(event,context):
     
     for pending_request in pending_requests:
         businessEntity = pending_request['businessEntity']
-        if 'pendingRequestExists' in budget_dict[businessEntity] :
+        if 'pendingRequestExists' in budget_dict[businessEntity]:
             # there could be multiple requests for same business Entity, just skips those
             continue 
-        else :
+        else:
             budget_dict[businessEntity]['pendingRequestExists'] = True
     
     pending_request_count = len(pending_requests)
-    if  pending_request_count > 0 :
+    if  pending_request_count > 0:
         # recompute blocked requests to see if there is a change in forecast
         process_requests(pending_requests, budget_dict)
         update_budget_accruals = True
@@ -81,7 +78,7 @@ def lambda_handler(event,context):
     blocked_requests = get_requests(blocked_req_status)
     
     blocked_request_count = len(blocked_requests)
-    if  blocked_request_count > 0 :
+    if  blocked_request_count > 0:
         # Process blocked requests for each Business Entity
         process_requests(blocked_requests, budget_dict)
         update_budget_accruals = True
@@ -90,7 +87,7 @@ def lambda_handler(event,context):
     saved_requests = get_requests(saved_req_status)
    
     saved_request_count = len(saved_requests)
-    if  saved_request_count > 0 :
+    if  saved_request_count > 0:
         # process requests that are in saved state
         process_requests(saved_requests, budget_dict)
         update_budget_accruals = True
@@ -102,7 +99,7 @@ def lambda_handler(event,context):
     
     
 
-def process_requests(requests, budget_dict) :
+def process_requests(requests, budget_dict):
     
     for request in requests:
         request_id = request['rangeKey']
@@ -118,9 +115,9 @@ def process_requests(requests, budget_dict) :
         forecast_spend = budget['accruedForecastedSpend'] if budget['accruedForecastedSpend'] > 0 else budget['forecastedSpend']
         remaining_amt = budget_amt - forecast_spend - requested_amt_monthly - blocked_amt - approved_amt
         logger.info("Remaining Amount for request {} after calculation is {}".format(request_id, remaining_amt))
-        if remaining_amt < 0 :
+        if remaining_amt < 0:
             logger.info("No Enough budget left for request {}".format(request_id))
-            if curr_req_status == saved_req_status :
+            if curr_req_status == saved_req_status:
                 logger.info("Request is in SAVED state, adjusting the local accruals before further processing... Request Id : {}".format(request_id))
                 budget['accruedBlockedSpend'] = blocked_amt + requested_amt_monthly
             if not 'pendingRequestExists' in budget or not budget['pendingRequestExists'] or (not budget['budgetForecastProcessed'] and curr_req_status == pending_req_status):
@@ -155,10 +152,10 @@ def process_requests(requests, budget_dict) :
 def approve_request(request_id, approval_url):
     logger.info("Request recieved to auto approval a product with request Id: {}".format(request_id))
     success_responseData = {
-        "Status" : "SUCCESS",
-        "Reason" : "APPROVED",
-        "UniqueId" : request_id,
-        "Data" : "System approved the stack creation"
+        "Status": "SUCCESS",
+        "Reason": "APPROVED",
+        "UniqueId": request_id,
+        "Data": "System approved the stack creation"
     }
     response = requests.put(approval_url, data=json.dumps(success_responseData))
     logger.info("Successfully auto approved a request with request id: {} with response {}".format(request_id, response))
@@ -254,7 +251,7 @@ def update_request_status(request_id, request_status, busines_entity_id):
             ':b': busines_entity_id,
             # ':r': 'Active'
         }
-    if request_status == "APPROVED_SYSTEM" :
+    if request_status == "APPROVED_SYSTEM":
         update_expression = update_expression + ", requestApprovalTime=:c, resourceStatus=:d"
         expression_attributes[':c']= str(datetime.utcnow())
         expression_attributes[':d']= 'ACTIVE'
