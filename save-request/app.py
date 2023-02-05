@@ -37,16 +37,16 @@ dynamodb = boto3.resource('dynamodb', region_name=region)
 budgets_table = dynamodb.Table(budgets_table_name)
 
 def lambda_handler(event, context):
-    responseData = {'Status':'Request successfully saved to Dynamo DB'}
+    responseData = {'Status': 'Request successfully saved to Dynamo DB'}
     logger.info(json.dumps(event))
     try:
         if event['RequestType'] == 'Delete':
             update_termination_request_status(event['StackId'].split("/")[-1])
-            responseData = {'Status':'Request successfully updated as Terminated in Dynamo DB'}
+            responseData = {'Status': 'Request successfully updated as Terminated in Dynamo DB'}
             sendResponse(event, context,'SUCCESS',responseData)
             return True
         elif event['RequestType'] != 'Create':
-            responseData = {'Staus':'No Special handling for Updated Stack, skip the event'}
+            responseData = {'Staus': 'No Special handling for Updated Stack, skip the event'}
             sendResponse(event, context,'SUCCESS',responseData)
             return True
         wait_url = event['ResourceProperties']['WaitUrl']
@@ -61,21 +61,21 @@ def lambda_handler(event, context):
         event['ResourceProperties'].pop('EC2Pricing')
         event['ResourceProperties'].pop('BusinessEntity')
         db_item = {
-                'partitionKey': partition_key,
-                'rangeKey': event['StackId'].split("/")[-1],
-                'requestApprovalUrl': approval_url,
-                'requestRejectionUrl': rejection_url,
-                'stackWaitUrl':wait_url,
-                'requestTime': str(datetime.utcnow()),
-                'requestorEmail': email_id,
-                'requestStatus': 'SAVED',
-                'resourceStatus': 'PENDING',
-                'businessEntity': business_entity,
-                'businessEntityId': '',
-                'pricingInfoAtRequest': json.loads(pricing_info, parse_float=Decimal),
-                'productName': event['ResourceProperties']['ProductName'],
-                'requestPayload': event['ResourceProperties']
-            }
+            'partitionKey': partition_key,
+            'rangeKey': event['StackId'].split("/")[-1],
+            'requestApprovalUrl': approval_url,
+            'requestRejectionUrl': rejection_url,
+            'stackWaitUrl': wait_url,
+            'requestTime': str(datetime.utcnow()),
+            'requestorEmail': email_id,
+            'requestStatus': 'SAVED',
+            'resourceStatus': 'PENDING',
+            'businessEntity': business_entity,
+            'businessEntityId': '',
+            'pricingInfoAtRequest': json.loads(pricing_info, parse_float=Decimal),
+            'productName': event['ResourceProperties']['ProductName'],
+            'requestPayload': event['ResourceProperties']
+        }
         create_approval_req_item(db_item)
         sendResponse(event, context,'SUCCESS',responseData)
         return True
@@ -88,7 +88,7 @@ def lambda_handler(event, context):
 def update_termination_request_status(request_id):
     logger.info('Received termination request for stack id: {}'.format(request_id))
     existing_req = budgets_table.get_item(
-        Key={'partitionKey':partition_key, 'rangeKey':request_id},
+        Key={'partitionKey': partition_key, 'rangeKey': request_id},
         ProjectionExpression='requestStatus, businessEntity, businessEntityId, pricingInfoAtRequest'
     )
     if 'Item' not in existing_req:
@@ -111,46 +111,49 @@ def update_termination_request_status(request_id):
         logger.info("Clear the blocked amt if exists")
         response = budgets_table.update_item(
             Key={'partitionKey': budget_parititon_key, 'rangeKey': business_entity_id},
-            UpdateExpression = "set accruedBlockedSpend=:b",
-            ExpressionAttributeValues={
-                ':b': accrued_blocked_spend
-            },  
-        ReturnValues="UPDATED_NEW")
+            UpdateExpression="set accruedBlockedSpend=:b",
+            ExpressionAttributeValues={':b': accrued_blocked_spend},  
+            ReturnValues="UPDATED_NEW"
+        )
         logger.info("Blocked amount cleared successfully: {}".format(response))
-    update_expression =  "set resourceTerminationTime=:a, resourceStatus=:r"
+    update_expression = "set resourceTerminationTime=:a, resourceStatus=:r"
     expression_attributes = {
         ':a': str(datetime.utcnow()),
         ':r': 'TERMINATED'
     }
     if request_status == 'PENDING' or request_status == 'BLOCKED' or request_status == 'SAVED':
-        update_expression =  update_expression+", requestStatus=:c"
+        update_expression = update_expression + ", requestStatus=:c"
         expression_attributes[':c'] = 'REJECTED_SYSTEM'
     elif request_status != 'REJECTED_ADMIN':
-        update_expression =  update_expression+", requestStatus=:c"
+        update_expression = update_expression + ", requestStatus=:c"
         expression_attributes[':c'] = request_status+'_TERMINATED'
     response = budgets_table.update_item(
         Key={'partitionKey': partition_key, 'rangeKey':request_id},
         UpdateExpression=update_expression,
         ExpressionAttributeValues=expression_attributes,
-        ReturnValues="UPDATED_NEW")
+        ReturnValues="UPDATED_NEW"
+    )
     logger.debug("UpdateItem succeeded:")
     logger.debug(json.dumps(response)) 
     return True
+
 # Create an request in database
 def create_approval_req_item(db_item):
-    response = budgets_table.put_item(
-        Item = db_item)
+    response = budgets_table.put_item(Item=db_item)
     logger.debug("CreateItem succeeded:")
     logger.debug(json.dumps(response))
+
 # Send response to CFN
 def sendResponse(event, context, responseStatus, responseData):
-    response_body={'Status': responseStatus,
-            'Reason': 'See the details in CloudWatch Log Stream ' + context.log_stream_name,
-            'PhysicalResourceId': context.log_stream_name ,
-            'StackId': event['StackId'],
-            'RequestId': event['RequestId'],
-            'LogicalResourceId': event['LogicalResourceId'],
-            'Data': responseData}
+    response_body = {
+        'Status': responseStatus,
+        'Reason': 'See the details in CloudWatch Log Stream ' + context.log_stream_name,
+        'PhysicalResourceId': context.log_stream_name,
+        'StackId': event['StackId'],
+        'RequestId': event['RequestId'],
+        'LogicalResourceId': event['LogicalResourceId'],
+        'Data': responseData
+    }
     try:
         response = requests.put(event['ResponseURL'],
                         data=json.dumps(response_body))

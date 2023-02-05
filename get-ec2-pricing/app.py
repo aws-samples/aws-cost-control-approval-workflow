@@ -122,15 +122,18 @@ def region_lookup(region):
     elif 'us-gov-west-1' in region.lower():
         return "GovCloud (US)"
     return "Region Not Found"
+
 # Send response back to CFN hook about the status of the function
 def sendResponse(event, context, responseStatus, responseData):
-    response_body={'Status': responseStatus,
-            'Reason': 'See the details in CloudWatch Log Stream ' + context.log_stream_name,
-            'PhysicalResourceId': context.log_stream_name ,
-            'StackId': event['StackId'],
-            'RequestId': event['RequestId'],
-            'LogicalResourceId': event['LogicalResourceId'],
-            'Data': responseData}
+    response_body = {
+        'Status': responseStatus,
+        'Reason': 'See the details in CloudWatch Log Stream ' + context.log_stream_name,
+        'PhysicalResourceId': context.log_stream_name,
+        'StackId': event['StackId'],
+        'RequestId': event['RequestId'],
+        'LogicalResourceId': event['LogicalResourceId'],
+        'Data': responseData
+    }
     try:
         response = requests.put(event['ResponseURL'],
                         data=json.dumps(response_body, use_decimal=True))
@@ -138,6 +141,7 @@ def sendResponse(event, context, responseStatus, responseData):
     except Exception as e:
         logger.info("Failed executing HTTP request: {}".format(e))
     return False
+
 # Function to get the price of the EC2 Instance
 def getPrice_from_API(oper_sys, instance_type, region, term_type):
     try:
@@ -145,40 +149,40 @@ def getPrice_from_API(oper_sys, instance_type, region, term_type):
         logger.info("instance: {}".format(instance_type))
         searchFilters=[                    
                 {
-                    'Type':'TERM_MATCH',
-                    'Field':'tenancy',
-                    'Value':'Shared'
+                    'Type': 'TERM_MATCH',
+                    'Field': 'tenancy',
+                    'Value': 'Shared'
                 },
                 {
-                    'Type':'TERM_MATCH',
-                    'Field':'location',
-                    'Value':region_lookup(region)
+                    'Type': 'TERM_MATCH',
+                    'Field': 'location',
+                    'Value': region_lookup(region)
                 },
                 {
-                    'Type':'TERM_MATCH',
-                    'Field':'operatingSystem',
-                    'Value':oper_sys
+                    'Type': 'TERM_MATCH',
+                    'Field': 'operatingSystem',
+                    'Value': oper_sys
                 },
                 {
-                    'Type':'TERM_MATCH',
-                    'Field':'preInstalledSw',
-                    'Value':'NA'
+                    'Type': 'TERM_MATCH',
+                    'Field': 'preInstalledSw',
+                    'Value': 'NA'
                 },
                 {
-                    'Type':'TERM_MATCH',
-                    'Field':'termType',
+                    'Type': 'TERM_MATCH',
+                    'Field': 'termType',
                     'Value': term_type
                 },
-                {'Type':'TERM_MATCH', 'Field':'capacityStatus', 'Value':'Used'},
+                {'Type': 'TERM_MATCH', 'Field': 'capacityStatus', 'Value': 'Used'},
                 {
-                    'Type':'TERM_MATCH',
-                    'Field':'instanceType',
+                    'Type': 'TERM_MATCH',
+                    'Field': 'instanceType',
                     'Value': instance_type
                 }
         ]
         #windows adds an extra license filter
         if 'Windows' in oper_sys:
-            searchFilters.append({"Type":"TERM_MATCH", "Field": "licenseModel", "Value": "No License required"})
+            searchFilters.append({"Type": "TERM_MATCH", "Field": "licenseModel", "Value": "No License required"})
         response = pricing.get_products(
             ServiceCode='AmazonEC2',        # required
             Filters = searchFilters,

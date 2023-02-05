@@ -92,37 +92,37 @@ def lambda_handler(event, context):
 def update_rejection_request_status(request_id):
     logger.info('Received request to terminate a stack with request id: {}'.format(request_id))
     response = budgets_table.update_item(
-        Key={'partitionKey':request_partition, 'rangeKey': request_id},
-        UpdateExpression=
-        "set requestStatus = :s, requestRejectionTime=:a, resourceStatus=:r",
+        Key={'partitionKey': request_partition, 'rangeKey': request_id},
+        UpdateExpression="set requestStatus = :s, requestRejectionTime=:a, resourceStatus=:r",
         ExpressionAttributeValues={
             ':s': 'REJECTED_ADMIN',
             ':a': str(datetime.utcnow()),
             ':r': 'REJECTED'
         },
-        ReturnValues="UPDATED_NEW")
+        ReturnValues="UPDATED_NEW"
+    )
     logger.debug("UpdateItem succeeded:")
     logger.debug(json.dumps(response))  
     
 # Update the status of the request in dynamo-db
 def update_approval_request_status(request_id):
     response = budgets_table.update_item(
-        Key={'partitionKey':request_partition, 'rangeKey': request_id},
-        UpdateExpression=
-        "set requestStatus = :s, requestApprovalTime=:a, resourceStatus=:r",
+        Key={'partitionKey': request_partition, 'rangeKey': request_id},
+        UpdateExpression="set requestStatus = :s, requestApprovalTime=:a, resourceStatus=:r",
         ExpressionAttributeValues={
             ':s': 'APPROVED_ADMIN',
             ':a': str(datetime.utcnow()),
             ':r': 'ACTIVE'
         },
-        ReturnValues="UPDATED_NEW")
+        ReturnValues="UPDATED_NEW"
+    )
     logger.debug("UpdateItem succeeded:")
     logger.debug(json.dumps(response))      
 
 # Get the request item for a given request id
 def get_request_item(request_id):
     response = budgets_table.get_item(
-        Key={'partitionKey':request_partition, 'rangeKey':request_id},
+        Key={'partitionKey': request_partition, 'rangeKey': request_id},
         ProjectionExpression='stackWaitUrl, requestStatus, businessEntityId, pricingInfoAtRequest'
     )
     return response['Item']
@@ -138,16 +138,17 @@ def update_accrued_amt(business_entity_id, accruedForecastedSpend, accruedBlocke
     }
     response = budgets_table.update_item(
         Key={'partitionKey': budget_partition, 'rangeKey': business_entity_id},
-        UpdateExpression = update_expression,
+        UpdateExpression=update_expression,
         ExpressionAttributeValues=expression_attributes,
-        ReturnValues="UPDATED_NEW")
+        ReturnValues="UPDATED_NEW"
+    )
     logger.info('Successfully Updated accrued Amt for Key: {} with response {}'.format(business_entity_id, response))
     return True
 
 # Gets the Budget information for a given business entity Id
 def get_budgets_for_request(business_entity_id):
     response = budgets_table.get_item(
-        Key={'partitionKey':budget_partition, 'rangeKey':business_entity_id},
+        Key={'partitionKey': budget_partition, 'rangeKey': business_entity_id},
         ProjectionExpression='accruedForecastedSpend, accruedBlockedSpend, accruedApprovedSpend'
     )
     return response['Item']

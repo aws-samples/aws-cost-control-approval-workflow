@@ -80,11 +80,10 @@ def reset_accrued_approved_amt(range_key, budget_name):
     logger.info("Resetting the accruedApprovedSpent at begining of the month for business entity id {}".format(range_key))
     response = budgets_table.update_item(
         Key={'partitionKey': partition_key, 'rangeKey': range_key},
-        UpdateExpression = "set accruedApprovedSpend=:a",
-        ExpressionAttributeValues={
-            ':a': Decimal(0.0)
-        },
-        ReturnValues="UPDATED_NEW")
+        UpdateExpression="set accruedApprovedSpend=:a",
+        ExpressionAttributeValues={':a': Decimal(0.0)},
+        ReturnValues="UPDATED_NEW"
+    )
     logger.info('Updated Pricing Info for Budget: {} with response {}'.format(budget_name, response))
     return True
 
@@ -92,7 +91,7 @@ def reset_accrued_approved_amt(range_key, budget_name):
 def update_pricing_info(range_key, budget_name, budget_limit, actual_spend, forcasted_spend):
     response = budgets_table.update_item(
         Key={'partitionKey': partition_key, 'rangeKey': range_key},
-        UpdateExpression = "set budgetLimit=:a, actualSpend=:b, forecastedSpend=:c, budgetUpdatedAt=:d, budgetForecastProcessed=:e",
+        UpdateExpression="set budgetLimit=:a, actualSpend=:b, forecastedSpend=:c, budgetUpdatedAt=:d, budgetForecastProcessed=:e",
         ExpressionAttributeValues={
             ':a': budget_limit,
             ':b': actual_spend,
@@ -100,14 +99,15 @@ def update_pricing_info(range_key, budget_name, budget_limit, actual_spend, forc
             ':d': str(datetime.utcnow()),
             ':e': False,
         },
-        ReturnValues="UPDATED_NEW")
+        ReturnValues="UPDATED_NEW"
+    )
     logger.info('Updated Pricinig Info for Budget: {} with response {}'.format(budget_name, response))
     return True
 
 # Get all budget information for all business entities
 def get_business_entities():
     response = budgets_table.query(
-        KeyConditionExpression= Key('partitionKey').eq(partition_key),
+        KeyConditionExpression=Key('partitionKey').eq(partition_key),
         ProjectionExpression='rangeKey,budgetName'
     )
     logger.info("Business Entities fetched from DB")
@@ -122,7 +122,7 @@ def get_budget_details(account_id, budget_name):
 def get_requests(request_state):
     response = budgets_table.query(
         IndexName='query-by-request-status',
-        KeyConditionExpression= Key('requestStatus').eq(request_state),
+        KeyConditionExpression=Key('requestStatus').eq(request_state),
         ScanIndexForward=True,
         ProjectionExpression='rangeKey,requestorEmail,requestApprovalUrl,pricingInfoAtRequest,accuredForcastedSpend, businessEntity'
     )
