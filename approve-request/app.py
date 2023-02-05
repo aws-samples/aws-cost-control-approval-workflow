@@ -37,10 +37,10 @@ budget_partition = 'BUDGET'
 def lambda_handler(event, context):
     logger.info(json.dumps(event))
     success_responseData = {
-    "Status": "SUCCESS",
-    "Reason": "Approved",
-    "UniqueId": 'None',
-    "Data": "Owner approved the stack creation"
+        "Status": "SUCCESS",
+        "Reason": "Approved",
+        "UniqueId": 'None',
+        "Data": "Owner approved the stack creation"
     }
     if event['queryStringParameters'] and 'requestId' in event['queryStringParameters'] and 'requestStatus' in event['queryStringParameters']:
         
