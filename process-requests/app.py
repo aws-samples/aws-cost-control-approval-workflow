@@ -138,7 +138,7 @@ def process_requests(requests, budget_dict):
             # if request is in blocked state, it means that a blocked request is rejected, we must
             # deduct the blocked amount and add it forecast amount since we would added to blocked amt
             # when we marked this request as blocked
-            if curr_req_status == blocked_req_status or curr_req_status == pending_req_status:
+            if curr_req_status in (pending_req_status, blocked_req_status):
                 budget['accruedBlockedSpend'] = blocked_amt - requested_amt_monthly
                 budget['pendingRequestExists'] = False
             
@@ -216,17 +216,18 @@ def update_accrued_amt(budget_dict):
             expression_attributes[':d'] = str(datetime.utcnow())
 
         response = budgets_table.update_item(
-        Key={'partitionKey': budgets_partition_key, 'rangeKey': value['rangeKey']},
-        UpdateExpression = update_expression,
-        ExpressionAttributeValues=expression_attributes,
-        ReturnValues="UPDATED_NEW")
+            Key={'partitionKey': budgets_partition_key, 'rangeKey': value['rangeKey']},
+            UpdateExpression=update_expression,
+            ExpressionAttributeValues=expression_attributes,
+            ReturnValues="UPDATED_NEW"
+        )
         logger.info('Successfully Updated accrued Amt for Key: {} with response {}'.format(key, response))
     return True
 
 # get budgets for all business entities
 def get_budget_info():
     response = budgets_table.query(
-        KeyConditionExpression= Key('partitionKey').eq(budgets_partition_key),
+        KeyConditionExpression=Key('partitionKey').eq(budgets_partition_key),
         ProjectionExpression='notifySNSTopic, accruedApprovedSpend, businessEntity,rangeKey, accruedBlockedSpend, actualSpend, approverEmail,budgetLimit,forecastedSpend, accruedForecastedSpend, budgetForecastProcessed'
     )
     logger.info("Budget Info fetched from database")
@@ -236,7 +237,7 @@ def get_budget_info():
 def get_requests(request_state):
     response = budgets_table.query(
         IndexName='query-by-request-status',
-        KeyConditionExpression= Key('requestStatus').eq(request_state),
+        KeyConditionExpression=Key('requestStatus').eq(request_state),
         ScanIndexForward=True,
         ProjectionExpression='stackWaitUrl,rangeKey,requestorEmail,requestApprovalUrl,pricingInfoAtRequest, requestPayload, businessEntity, requestStatus, requestRejectionUrl'
     )
@@ -253,12 +254,12 @@ def update_request_status(request_id, request_status, busines_entity_id):
         }
     if request_status == "APPROVED_SYSTEM":
         update_expression = update_expression + ", requestApprovalTime=:c, resourceStatus=:d"
-        expression_attributes[':c']= str(datetime.utcnow())
-        expression_attributes[':d']= 'ACTIVE'
+        expression_attributes[':c'] = str(datetime.utcnow())
+        expression_attributes[':d'] = 'ACTIVE'
         
     response = budgets_table.update_item(
-       Key={'partitionKey': requests_parition_key, 'rangeKey': request_id},
-        UpdateExpression= update_expression,
+        Key={'partitionKey': requests_parition_key, 'rangeKey': request_id},
+        UpdateExpression=update_expression,
         ExpressionAttributeValues= expression_attributes,
         ReturnValues="UPDATED_NEW")
     logger.debug("UpdateItem succeeded:")

@@ -35,7 +35,7 @@ region = os.environ['AWS_REGION']
 def lambda_handler(event, context):
     # Do not do anything for CFN Update and Delete
     if 'RequestType' in event and event['RequestType'] != 'Create':
-        sendResponse(event, context,'SUCCESS', {})
+        sendResponse(event, context, 'SUCCESS', {})
         return
     
     logger.info(json.dumps(event))
@@ -62,10 +62,10 @@ def lambda_handler(event, context):
             '31DayPrice': monthly_avg,
             'NextMonthPrice': next_month_price,
             'HoursLeftInCurrMonth': hours_left,
-            'ResponseTime': str(datetime.datetime.utcnow())
+            'ResponseTime': str(datetime.datetime.utcnow()),
         }
     }
-    sendResponse(event, context,'SUCCESS', result)
+    sendResponse(event, context, 'SUCCESS', result)
     return result
     # instCost = Decimal(str(round(Decimal(getHoursLeft()*instCost),2)))
 
@@ -91,37 +91,24 @@ def hours_left_for_current_month():
 
 # Get region code
 def region_lookup(region):
-    if 'us-west-1' in region.lower():
-        return "US West (N. California)"
-    elif 'us-west-2' in region.lower():
-        return "US West (Oregon)"
-    elif 'us-east-1' in region.lower():
-        return "US East (N. Virginia)"
-    elif 'us-east-2' in region.lower():
-        return "US East (Ohio)"
-    elif 'ca-central-1' in region.lower():
-        return "Canada (Central)"
-    elif 'ap-south-1' in region.lower():
-        return "Asia Pacific (Mumbai)"
-    elif 'ap-northeast-2' in region.lower():
-        return "Asia Pacific (Seoul)"
-    elif 'ap-southeast-1' in region.lower():
-        return "Asia Pacific (Singapore)"
-    elif 'ap-southeast-2' in region.lower():
-        return "Asia Pacific (Sydney)"
-    elif 'ap-northeast-1' in region.lower():
-        return "Asia Pacific (Tokyo)"
-    elif 'eu-central-1' in region.lower():
-        return "EU (Frankfurt)"
-    elif 'eu-west-1' in region.lower():
-        return "EU (Ireland)"
-    elif 'eu-west-2' in region.lower():
-        return "EU (London)"
-    elif 'sa-east-1' in region.lower():
-        return "South America (Sao Paulo)"
-    elif 'us-gov-west-1' in region.lower():
-        return "GovCloud (US)"
-    return "Region Not Found"
+    lookup = {
+        'us-west-1': "US West (N. California)",
+        'us-west-2': "US West (Oregon)",
+        'us-east-1': "US East (N. Virginia)",
+        'us-east-2': "US East (Ohio)",
+        'ca-central-1': "Canada (Central)",
+        'ap-south-1':  "Asia Pacific (Mumbai)",
+        'ap-northeast-2': "Asia Pacific (Seoul)",
+        'ap-southeast-1': "Asia Pacific (Singapore)",
+        'ap-southeast-2': "Asia Pacific (Sydney)",
+        'ap-northeast-1': "Asia Pacific (Tokyo)",
+        'eu-central-1': "EU (Frankfurt)",
+        'eu-west-1': "EU (Ireland)",
+        'eu-west-2': "EU (London)",
+        'sa-east-1': "South America (Sao Paulo)",
+        'us-gov-west-1': "GovCloud (US)",
+    }
+    return lookup.get(region.lower(), "Region Not Found")
 
 # Send response back to CFN hook about the status of the function
 def sendResponse(event, context, responseStatus, responseData):
@@ -135,8 +122,7 @@ def sendResponse(event, context, responseStatus, responseData):
         'Data': responseData,
     }
     try:
-        response = requests.put(event['ResponseURL'],
-                        data=json.dumps(response_body, use_decimal=True))
+        response = requests.put(event['ResponseURL'], data=json.dumps(response_body, use_decimal=True))
         return True
     except Exception as e:
         logger.info("Failed executing HTTP request: {}".format(e))
@@ -185,9 +171,9 @@ def getPrice_from_API(oper_sys, instance_type, region, term_type):
             searchFilters.append({"Type": "TERM_MATCH", "Field": "licenseModel", "Value": "No License required"})
         response = pricing.get_products(
             ServiceCode='AmazonEC2',        # required
-            Filters = searchFilters,
-            FormatVersion='aws_v1',        # optional
-            NextToken='',                  # optional
+            Filters=searchFilters,
+            FormatVersion='aws_v1',         # optional
+            NextToken='',                   # optional
             MaxResults=20                   # optional
         )
         if len(response['PriceList']) > 1:
@@ -197,7 +183,7 @@ def getPrice_from_API(oper_sys, instance_type, region, term_type):
         resp_json = json.loads(response['PriceList'][0])
         price = 0
         for key, value in resp_json['terms'][term_type].items():
-            logger.info("Reading Price for termType {}, key {}".format(term_type,key))
+            logger.info("Reading Price for termType {}, key {}".format(term_type, key))
             for dimkey, dimValue in value['priceDimensions'].items():
                 logger.info("Reading Price for dimension key {}".format(dimkey))
                 price = dimValue['pricePerUnit']['USD']

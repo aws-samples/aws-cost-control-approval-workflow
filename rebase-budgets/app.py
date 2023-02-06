@@ -61,7 +61,7 @@ def lambda_handler(event, context):
                         forecast_spend = Decimal(budget_info['Budget']['CalculatedSpend']['ForecastedSpend']['Amount'])
                         # Reset accruedForcastedSpend whenever there is a budget update from AWS
                         update_pricing_info(range_key, budget_name, budget_amt, actual_spend, forecast_spend)
-            return {'statusCode':'200','body':'Successfully rebased accruedForecastSpend'}
+            return {'statusCode':'200', 'body':'Successfully rebased accruedForecastSpend'}
         # Monthly rebase of accruedApprovalSpend
         elif 'source' in event and event['source'] == 'aws.events': 
             logger.info("Event received from CloudWatchRule")
@@ -70,7 +70,7 @@ def lambda_handler(event, context):
                 budget_name = entity['budgetName']
                 range_key = entity['rangeKey']
                 reset_accrued_approved_amt(range_key,budget_name)
-            return {'statusCode':'200','body':'Successfully rebased AccruedApproval Amount'}
+            return {'statusCode':'200', 'body':'Successfully rebased AccruedApproval Amount'}
     except Exception as e:
         logger.error(e)
         return {'statusCode': '500', 'body':e}
