@@ -54,16 +54,16 @@ def lambda_handler(event, context):
     logger.info("Monthly Price: {}".format(monthly_price))
     result = {
         'Pricing': {
-                'OperatingSystem': operating_system,
-                'TermType': term_type,
-                'InstanceType': instance_type,
-                'UnitPrice': unit_price,
-                'EstCurrMonthPrice': monthly_price,
-                '31DayPrice': monthly_avg,
-                'NextMonthPrice': next_month_price,
-                'HoursLeftInCurrMonth': hours_left,
-                'ResponseTime': str(datetime.datetime.utcnow())
-            }
+            'OperatingSystem': operating_system,
+            'TermType': term_type,
+            'InstanceType': instance_type,
+            'UnitPrice': unit_price,
+            'EstCurrMonthPrice': monthly_price,
+            '31DayPrice': monthly_avg,
+            'NextMonthPrice': next_month_price,
+            'HoursLeftInCurrMonth': hours_left,
+            'ResponseTime': str(datetime.datetime.utcnow())
+        }
     }
     sendResponse(event, context,'SUCCESS', result)
     return result
@@ -132,7 +132,7 @@ def sendResponse(event, context, responseStatus, responseData):
         'StackId': event['StackId'],
         'RequestId': event['RequestId'],
         'LogicalResourceId': event['LogicalResourceId'],
-        'Data': responseData
+        'Data': responseData,
     }
     try:
         response = requests.put(event['ResponseURL'],

@@ -43,7 +43,6 @@ def lambda_handler(event, context):
         "Data": "Owner approved the stack creation"
     }
     if event['queryStringParameters'] and 'requestId' in event['queryStringParameters'] and 'requestStatus' in event['queryStringParameters']:
-        
         request_id = event['queryStringParameters']['requestId']
         request_status = event['queryStringParameters']['requestStatus']
         success_responseData['UniqueId'] = request_id
@@ -58,7 +57,7 @@ def lambda_handler(event, context):
         wait_url = request['stackWaitUrl']        
         try:
             logger.info("Accruals before processing the request Blocked: {}, Forcasted: {}, Approved: {}".format(accrued_blocked, accrued_forecast, accrued_approved))
-            if request['requestStatus'] == 'PENDING' or request['requestStatus'] == 'BLOCKED':
+            if request['requestStatus'] in ['PENDING', 'BLOCKED']:
                 if  request_status == "Approve":
                     success_responseData['Status'] = "SUCCESS"
                     update_approval_request_status(request_id)
