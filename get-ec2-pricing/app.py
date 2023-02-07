@@ -35,7 +35,7 @@ region = os.environ['AWS_REGION']
 def lambda_handler(event, context):
     # Do not do anything for CFN Update and Delete
     if 'RequestType' in event and event['RequestType'] != 'Create':
-        sendResponse(event, context, 'SUCCESS', {})
+        send_response(event, context, 'SUCCESS', {})
         return
     
     logger.info(json.dumps(event))
@@ -46,7 +46,7 @@ def lambda_handler(event, context):
     hours_left = hours_left_for_current_month()
     next_month_hrs = hours_for_next_month()
     logger.info("# of Hrs left for this month {}".format(hours_left))
-    unit_price = getPrice_from_API(operating_system, instance_type, region, term_type)
+    unit_price = get_price_from_api(operating_system, instance_type, region, term_type)
     logger.info("Unit Price {}".format(unit_price))
     monthly_price = hours_left * unit_price
     monthly_avg = 31 * 24 * unit_price
@@ -65,7 +65,7 @@ def lambda_handler(event, context):
             'ResponseTime': str(datetime.datetime.utcnow()),
         }
     }
-    sendResponse(event, context, 'SUCCESS', result)
+    send_response(event, context, 'SUCCESS', result)
     return result
     # instCost = Decimal(str(round(Decimal(getHoursLeft()*instCost),2)))
 
@@ -74,12 +74,12 @@ def hours_for_next_month():
     now = datetime.datetime.utcnow()
     month = now.month
     year = now.year
-    nextmonth = month + 1
+    next_month = month + 1
     if month == 12:
         year = year + 1
-    if nextmonth > 12:
-        nextmonth = nextmonth % 12
-    return calendar.monthrange(year, nextmonth)[1] * 24
+    if next_month > 12:
+        next_month = next_month % 12
+    return calendar.monthrange(year, next_month)[1] * 24
 
 # Get total # of hrs left in current month
 def hours_left_for_current_month():
@@ -111,15 +111,15 @@ def region_lookup(region):
     return lookup.get(region.lower(), "Region Not Found")
 
 # Send response back to CFN hook about the status of the function
-def sendResponse(event, context, responseStatus, responseData):
+def send_response(event, context, response_status, response_data):
     response_body = {
-        'Status': responseStatus,
+        'Status': response_status,
         'Reason': 'See the details in CloudWatch Log Stream ' + context.log_stream_name,
         'PhysicalResourceId': context.log_stream_name,
         'StackId': event['StackId'],
         'RequestId': event['RequestId'],
         'LogicalResourceId': event['LogicalResourceId'],
-        'Data': responseData,
+        'Data': response_data,
     }
     try:
         response = requests.put(event['ResponseURL'], data=json.dumps(response_body, use_decimal=True))
@@ -129,11 +129,11 @@ def sendResponse(event, context, responseStatus, responseData):
     return False
 
 # Function to get the price of the EC2 Instance
-def getPrice_from_API(oper_sys, instance_type, region, term_type):
+def get_price_from_api(oper_sys, instance_type, region, term_type):
     try:
         pricing = boto3.client('pricing', region_name='us-east-1')
         logger.info("instance: {}".format(instance_type))
-        searchFilters=[                    
+        search_filters=[
                 {
                     'Type': 'TERM_MATCH',
                     'Field': 'tenancy',
@@ -166,12 +166,12 @@ def getPrice_from_API(oper_sys, instance_type, region, term_type):
                     'Value': instance_type
                 }
         ]
-        #windows adds an extra license filter
+        # windows adds an extra license filter
         if 'Windows' in oper_sys:
-            searchFilters.append({"Type": "TERM_MATCH", "Field": "licenseModel", "Value": "No License required"})
+            search_filters.append({"Type": "TERM_MATCH", "Field": "licenseModel", "Value": "No License required"})
         response = pricing.get_products(
             ServiceCode='AmazonEC2',        # required
-            Filters=searchFilters,
+            Filters=search_filters,
             FormatVersion='aws_v1',         # optional
             NextToken='',                   # optional
             MaxResults=20                   # optional
@@ -184,9 +184,9 @@ def getPrice_from_API(oper_sys, instance_type, region, term_type):
         price = 0
         for key, value in resp_json['terms'][term_type].items():
             logger.info("Reading Price for termType {}, key {}".format(term_type, key))
-            for dimkey, dimValue in value['priceDimensions'].items():
-                logger.info("Reading Price for dimension key {}".format(dimkey))
-                price = dimValue['pricePerUnit']['USD']
+            for dim_key, dim_value in value['priceDimensions'].items():
+                logger.info("Reading Price for dimension key {}".format(dim_key))
+                price = dim_value['pricePerUnit']['USD']
         return Decimal(price)
     except Exception as e:
         print(e)

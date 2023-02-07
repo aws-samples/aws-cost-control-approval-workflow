@@ -37,17 +37,17 @@ dynamodb = boto3.resource('dynamodb', region_name=region)
 budgets_table = dynamodb.Table(budgets_table_name)
 
 def lambda_handler(event, context):
-    responseData = {'Status': 'Request successfully saved to Dynamo DB'}
+    response_data = {'Status': 'Request successfully saved to Dynamo DB'}
     logger.info(json.dumps(event))
     try:
         if event['RequestType'] == 'Delete':
             update_termination_request_status(event['StackId'].split("/")[-1])
-            responseData = {'Status': 'Request successfully updated as Terminated in Dynamo DB'}
-            sendResponse(event, context,'SUCCESS',responseData)
+            response_data = {'Status': 'Request successfully updated as Terminated in Dynamo DB'}
+            send_response(event, context, 'SUCCESS', response_data)
             return True
         elif event['RequestType'] != 'Create':
-            responseData = {'Staus': 'No Special handling for Updated Stack, skip the event'}
-            sendResponse(event, context,'SUCCESS',responseData)
+            response_data = {'Status': 'No Special handling for Updated Stack, skip the event'}
+            send_response(event, context, 'SUCCESS', response_data)
             return True
         wait_url = event['ResourceProperties']['WaitUrl']
         email_id = event['ResourceProperties']['EmailID']
@@ -77,12 +77,12 @@ def lambda_handler(event, context):
             'requestPayload': event['ResourceProperties']
         }
         create_approval_req_item(db_item)
-        sendResponse(event, context,'SUCCESS',responseData)
+        send_response(event, context,'SUCCESS', response_data)
         return True
     except Exception as e:
-         logger.info("Error while saving the request in datatbase, termiante the stack: {}".format(e))
-         sendResponse(event, context, 'FAILED', {})
-         return False
+        logger.info("Error while saving the request in datatbase, termiante the stack: {}".format(e))
+        send_response(event, context, 'FAILED', {})
+        return False
 
 # Update the status of the request in dynamo-db
 def update_termination_request_status(request_id):
@@ -100,7 +100,7 @@ def update_termination_request_status(request_id):
     request_status = existing_req['Item']['requestStatus']
     
     # if status is pending/rejected/blocked, then deduct from accrued blocked amt
-    if len(business_entity_id) > 0 and (request_status == 'PENDING' or request_status == 'BLOCKED'):
+    if len(business_entity_id) > 0 and request_status in ["PENDING", "BLOCKED"]:
         logger.info('Adjusting Accruals since request is in {} state'.format(request_status))
         budget_info = budgets_table.get_item(
             Key={'partitionKey':budget_parititon_key, 'rangeKey':business_entity_id},
@@ -137,26 +137,25 @@ def update_termination_request_status(request_id):
     logger.debug(json.dumps(response)) 
     return True
 
-# Create an request in database
+# Create a request in database
 def create_approval_req_item(db_item):
     response = budgets_table.put_item(Item=db_item)
     logger.debug("CreateItem succeeded:")
     logger.debug(json.dumps(response))
 
 # Send response to CFN
-def sendResponse(event, context, responseStatus, responseData):
+def send_response(event, context, response_status, response_data):
     response_body = {
-        'Status': responseStatus,
+        'Status': response_status,
         'Reason': 'See the details in CloudWatch Log Stream ' + context.log_stream_name,
         'PhysicalResourceId': context.log_stream_name,
         'StackId': event['StackId'],
         'RequestId': event['RequestId'],
         'LogicalResourceId': event['LogicalResourceId'],
-        'Data': responseData
+        'Data': response_data,
     }
     try:
-        response = requests.put(event['ResponseURL'],
-                        data=json.dumps(response_body))
+        response = requests.put(event['ResponseURL'], data=json.dumps(response_body))
         return True
     except Exception as e:
         logger.info("Failed executing HTTP request: {}".format(e))

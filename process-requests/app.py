@@ -33,7 +33,7 @@ region = os.environ['AWS_REGION']
 budgets_table_name = os.environ['BudgetsTable']
 dynamodb = boto3.resource('dynamodb', region_name=region)
 budgets_table = dynamodb.Table(budgets_table_name)
-sns   = boto3.resource('sns')
+sns = boto3.resource('sns')
 budgets_partition_key = 'BUDGET'
 requests_parition_key = 'REQUEST'
 saved_req_status = 'SAVED'
@@ -61,12 +61,12 @@ def lambda_handler(event, context):
     pending_requests = get_requests(pending_req_status)
     
     for pending_request in pending_requests:
-        businessEntity = pending_request['businessEntity']
-        if 'pendingRequestExists' in budget_dict[businessEntity]:
+        business_entity = pending_request['businessEntity']
+        if 'pendingRequestExists' in budget_dict[business_entity]:
             # there could be multiple requests for same business Entity, just skips those
             continue 
         else:
-            budget_dict[businessEntity]['pendingRequestExists'] = True
+            budget_dict[business_entity]['pendingRequestExists'] = True
     
     pending_request_count = len(pending_requests)
     if  pending_request_count > 0:
@@ -87,7 +87,7 @@ def lambda_handler(event, context):
     saved_requests = get_requests(saved_req_status)
    
     saved_request_count = len(saved_requests)
-    if  saved_request_count > 0:
+    if saved_request_count > 0:
         # process requests that are in saved state
         process_requests(saved_requests, budget_dict)
         update_budget_accruals = True
@@ -100,15 +100,14 @@ def lambda_handler(event, context):
     
 
 def process_requests(requests, budget_dict):
-    
     for request in requests:
         request_id = request['rangeKey']
         budget = budget_dict[request['businessEntity']]
         logger.info("Available Budget while processing request {} is {}".format(request_id, budget))
         budget_amt = budget['budgetLimit']
         curr_req_status = request['requestStatus']
-        requested_amt = request['pricingInfoAtRequest']['EstCurrMonthPrice'] #EstCurrMonthPrice
-        requested_amt_monthly = request['pricingInfoAtRequest']['31DayPrice'] #EstCurrMonthPrice
+        requested_amt = request['pricingInfoAtRequest']['EstCurrMonthPrice'] # EstCurrMonthPrice
+        requested_amt_monthly = request['pricingInfoAtRequest']['31DayPrice'] # EstCurrMonthPrice
         logger.info("Pricing info for request {} is {}".format(request_id, request['pricingInfoAtRequest']))
         blocked_amt = budget['accruedBlockedSpend']
         approved_amt = budget['accruedApprovedSpend']
@@ -150,14 +149,14 @@ def process_requests(requests, budget_dict):
         
 # Approve a request id sicne it falls within budget
 def approve_request(request_id, approval_url):
-    logger.info("Request recieved to auto approval a product with request Id: {}".format(request_id))
-    success_responseData = {
+    logger.info("Request received to auto approval a product with request Id: {}".format(request_id))
+    success_response_data = {
         "Status": "SUCCESS",
         "Reason": "APPROVED",
         "UniqueId": request_id,
         "Data": "System approved the stack creation"
     }
-    response = requests.put(approval_url, data=json.dumps(success_responseData))
+    response = requests.put(approval_url, data=json.dumps(success_response_data))
     logger.info("Successfully auto approved a request with request id: {} with response {}".format(request_id, response))
     
 # Notify an admin over a SNS topic
@@ -228,18 +227,18 @@ def update_accrued_amt(budget_dict):
 def get_budget_info():
     response = budgets_table.query(
         KeyConditionExpression=Key('partitionKey').eq(budgets_partition_key),
-        ProjectionExpression='notifySNSTopic, accruedApprovedSpend, businessEntity,rangeKey, accruedBlockedSpend, actualSpend, approverEmail,budgetLimit,forecastedSpend, accruedForecastedSpend, budgetForecastProcessed'
+        ProjectionExpression='notifySNSTopic,accruedApprovedSpend,businessEntity,rangeKey,accruedBlockedSpend,actualSpend,approverEmail,budgetLimit,forecastedSpend,accruedForecastedSpend,budgetForecastProcessed'
     )
     logger.info("Budget Info fetched from database")
     return response['Items']
 
-# Get reqeuests by state
+# Get requests by state
 def get_requests(request_state):
     response = budgets_table.query(
         IndexName='query-by-request-status',
         KeyConditionExpression=Key('requestStatus').eq(request_state),
         ScanIndexForward=True,
-        ProjectionExpression='stackWaitUrl,rangeKey,requestorEmail,requestApprovalUrl,pricingInfoAtRequest, requestPayload, businessEntity, requestStatus, requestRejectionUrl'
+        ProjectionExpression='stackWaitUrl,rangeKey,requestorEmail,requestApprovalUrl,pricingInfoAtRequest,requestPayload,businessEntity,requestStatus,requestRejectionUrl'
     )
     logger.info("Requests fetched from DB for state: {}, request count {}".format(request_state, len(response['Items'])))
     return response['Items']

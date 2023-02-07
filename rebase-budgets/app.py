@@ -59,9 +59,9 @@ def lambda_handler(event, context):
                         budget_amt = Decimal(budget_info['Budget']['BudgetLimit']['Amount'])
                         actual_spend = Decimal(budget_info['Budget']['CalculatedSpend']['ActualSpend']['Amount'])
                         forecast_spend = Decimal(budget_info['Budget']['CalculatedSpend']['ForecastedSpend']['Amount'])
-                        # Reset accruedForcastedSpend whenever there is a budget update from AWS
+                        # Reset accrued_forcasted_spend whenever there is a budget update from AWS
                         update_pricing_info(range_key, budget_name, budget_amt, actual_spend, forecast_spend)
-            return {'statusCode':'200', 'body':'Successfully rebased accruedForecastSpend'}
+            return {'statusCode':'200', 'body': 'Successfully rebased accruedForecastSpend'}
         # Monthly rebase of accruedApprovalSpend
         elif 'source' in event and event['source'] == 'aws.events': 
             logger.info("Event received from CloudWatchRule")
@@ -70,14 +70,14 @@ def lambda_handler(event, context):
                 budget_name = entity['budgetName']
                 range_key = entity['rangeKey']
                 reset_accrued_approved_amt(range_key,budget_name)
-            return {'statusCode':'200', 'body':'Successfully rebased AccruedApproval Amount'}
+            return {'statusCode': '200', 'body': 'Successfully rebased AccruedApproval Amount'}
     except Exception as e:
         logger.error(e)
-        return {'statusCode': '500', 'body':e}
+        return {'statusCode': '500', 'body': e}
 
 # Reset Accruals in database
 def reset_accrued_approved_amt(range_key, budget_name):
-    logger.info("Resetting the accruedApprovedSpent at begining of the month for business entity id {}".format(range_key))
+    logger.info("Resetting the accruedApprovedSpent at beginning of the month for business entity id {}".format(range_key))
     response = budgets_table.update_item(
         Key={'partitionKey': partition_key, 'rangeKey': range_key},
         UpdateExpression="set accruedApprovedSpend=:a",
@@ -101,7 +101,7 @@ def update_pricing_info(range_key, budget_name, budget_limit, actual_spend, forc
         },
         ReturnValues="UPDATED_NEW"
     )
-    logger.info('Updated Pricinig Info for Budget: {} with response {}'.format(budget_name, response))
+    logger.info('Updated Pricing Info for Budget: {} with response {}'.format(budget_name, response))
     return True
 
 # Get all budget information for all business entities

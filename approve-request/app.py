@@ -36,7 +36,7 @@ budget_partition = 'BUDGET'
 
 def lambda_handler(event, context):
     logger.info(json.dumps(event))
-    success_responseData = {
+    success_response_data = {
         "Status": "SUCCESS",
         "Reason": "Approved",
         "UniqueId": 'None',
@@ -45,7 +45,7 @@ def lambda_handler(event, context):
     if event['queryStringParameters'] and 'requestId' in event['queryStringParameters'] and 'requestStatus' in event['queryStringParameters']:
         request_id = event['queryStringParameters']['requestId']
         request_status = event['queryStringParameters']['requestStatus']
-        success_responseData['UniqueId'] = request_id
+        success_response_data['UniqueId'] = request_id
         request = get_request_item(request_id)
         requested_amt = request['pricingInfoAtRequest']['EstCurrMonthPrice']
         business_entity_id = request['businessEntityId']
@@ -59,7 +59,7 @@ def lambda_handler(event, context):
             logger.info("Accruals before processing the request Blocked: {}, Forcasted: {}, Approved: {}".format(accrued_blocked, accrued_forecast, accrued_approved))
             if request['requestStatus'] in ['PENDING', 'BLOCKED']:
                 if  request_status == "Approve":
-                    success_responseData['Status'] = "SUCCESS"
+                    success_response_data['Status'] = "SUCCESS"
                     update_approval_request_status(request_id)
                     # Recalcuate the accruals and move the requested amt to forecasted from blocked
                     accrued_blocked = accrued_blocked - requested_amt_monthly
@@ -67,15 +67,15 @@ def lambda_handler(event, context):
                     accrued_approved = accrued_approved + (requested_amt_monthly - requested_amt)
                     update_accrued_amt(business_entity_id, accrued_forecast, accrued_blocked, accrued_approved)
                 elif request_status == "Reject":
-                    success_responseData['Status'] = "FAILURE"
-                    success_responseData['Reason'] = "Rejected"
-                    success_responseData['Data'] = "Admin rejected the stack"
+                    success_response_data['Status'] = "FAILURE"
+                    success_response_data['Reason'] = "Rejected"
+                    success_response_data['Data'] = "Admin rejected the stack"
                     update_rejection_request_status(request_id)
                     # Remove the blocked amount since request is rejected
                     accrued_blocked = accrued_blocked - requested_amt_monthly
                     update_accrued_amt(business_entity_id, accrued_forecast, accrued_blocked, accrued_approved)
 
-                response = requests.put(wait_url, data=json.dumps(success_responseData))
+                response = requests.put(wait_url, data=json.dumps(success_response_data))
                 logger.info("Successfully responded for waithandle with response: {}".format(response))
             else:
                 logger.info('Request can abe approved/rejected only when it is in blocked or pending state')
@@ -102,7 +102,7 @@ def update_rejection_request_status(request_id):
     )
     logger.debug("UpdateItem succeeded:")
     logger.debug(json.dumps(response))  
-    
+
 # Update the status of the request in dynamo-db
 def update_approval_request_status(request_id):
     response = budgets_table.update_item(
@@ -127,13 +127,13 @@ def get_request_item(request_id):
     return response['Item']
 
 # Update the Accruals in database
-def update_accrued_amt(business_entity_id, accruedForecastedSpend, accruedBlockedSpend, accruedApprovedSpend):
-    logger.info("Update the Budget with new accrued amounts Blocked: {}, Forcasted: {}, Approved: {}".format(accruedBlockedSpend, accruedForecastedSpend, accruedApprovedSpend))
+def update_accrued_amt(business_entity_id, accrued_forecasted_spend, accrued_blocked_spend, accrued_approved_spend):
+    logger.info("Update the Budget with new accrued amounts Blocked: {}, Forcasted: {}, Approved: {}".format(accrued_blocked_spend, accrued_forecasted_spend, accrued_approved_spend))
     update_expression = "set accruedForecastedSpend=:a, accruedBlockedSpend=:b, accruedApprovedSpend=:c"
     expression_attributes = {
-        ':a': accruedForecastedSpend,
-        ':b': accruedBlockedSpend,
-        ':c': accruedApprovedSpend
+        ':a': accrued_forecasted_spend,
+        ':b': accrued_blocked_spend,
+        ':c': accrued_approved_spend
     }
     response = budgets_table.update_item(
         Key={'partitionKey': budget_partition, 'rangeKey': business_entity_id},
