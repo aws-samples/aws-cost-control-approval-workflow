@@ -124,7 +124,7 @@ def update_termination_request_status(request_id):
         ':a': str(datetime.utcnow()),
         ':r': 'TERMINATED'
     }
-    if request_status == 'PENDING' or request_status == 'BLOCKED' or request_status == 'SAVED':
+    if request_status in ['PENDING', 'BLOCKED', 'SAVED']:
         update_expression = update_expression + ", requestStatus=:c"
         expression_attributes[':c'] = 'REJECTED_SYSTEM'
     elif request_status != 'REJECTED_ADMIN':

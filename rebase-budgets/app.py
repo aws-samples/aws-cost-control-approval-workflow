@@ -80,8 +80,7 @@ def lambda_handler(event, context):
 
 # Reset Accruals in database
 def reset_accrued_approved_amt(range_key, budget_name):
-    logger.info(
-        "Resetting the accruedApprovedSpent at beginning of the month for business entity id {}".format(range_key))
+    logger.info("Resetting the accruedApprovedSpent at beginning of the month for business entity id {}".format(range_key))
     response = budgets_table.update_item(
         Key={'partitionKey': partition_key, 'rangeKey': range_key},
         UpdateExpression="set accruedApprovedSpend=:a",
