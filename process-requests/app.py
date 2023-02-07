@@ -129,9 +129,7 @@ def process_requests(requests, budget_dict):
                 notify_admin(request, budget)
                 budget['pendingRequestExists'] = True
             elif curr_req_status == saved_req_status:
-                logger.info(
-                    'Pending request exists for business entity, keeping the request in blocked state {}'.format(
-                        request_id))
+                logger.info('Pending request exists for business entity, keeping the request in blocked state {}'.format(request_id))
                 # mark rest of the requests denoting blocked by a existing request
                 update_request_status(request_id, blocked_req_status, budget['rangeKey'])
         else:
