@@ -18,12 +18,13 @@
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
 ################################################################################
-import requests
 import json
 import logging
-import boto3
 import os
 from datetime import datetime
+
+import boto3
+import requests
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -33,6 +34,7 @@ dynamodb = boto3.resource('dynamodb', region_name=region)
 budgets_table = dynamodb.Table(budgets_table_name)
 request_partition = 'REQUEST'
 budget_partition = 'BUDGET'
+
 
 def lambda_handler(event, context):
     logger.info(json.dumps(event))
@@ -54,14 +56,14 @@ def lambda_handler(event, context):
         accrued_forecast = budget['accruedForecastedSpend']
         accrued_approved = budget['accruedApprovedSpend']
         requested_amt_monthly = request['pricingInfoAtRequest']['31DayPrice']
-        wait_url = request['stackWaitUrl']        
+        wait_url = request['stackWaitUrl']
         try:
-            logger.info("Accruals before processing the request Blocked: {}, Forcasted: {}, Approved: {}".format(accrued_blocked, accrued_forecast, accrued_approved))
+            logger.info("Accruals before processing the request Blocked: {}, Forecasted: {}, Approved: {}".format(accrued_blocked, accrued_forecast, accrued_approved))
             if request['requestStatus'] in ['PENDING', 'BLOCKED']:
-                if  request_status == "Approve":
+                if request_status == "Approve":
                     success_response_data['Status'] = "SUCCESS"
                     update_approval_request_status(request_id)
-                    # Recalcuate the accruals and move the requested amt to forecasted from blocked
+                    # Recalculate the accruals and move the requested amt to forecasted from blocked
                     accrued_blocked = accrued_blocked - requested_amt_monthly
                     accrued_forecast = accrued_forecast + requested_amt
                     accrued_approved = accrued_approved + (requested_amt_monthly - requested_amt)
@@ -76,16 +78,17 @@ def lambda_handler(event, context):
                     update_accrued_amt(business_entity_id, accrued_forecast, accrued_blocked, accrued_approved)
 
                 response = requests.put(wait_url, data=json.dumps(success_response_data))
-                logger.info("Successfully responded for waithandle with response: {}".format(response))
+                logger.info("Successfully responded for wait handle with response: {}".format(response))
             else:
                 logger.info('Request can abe approved/rejected only when it is in blocked or pending state')
         except Exception as e:
             logger.error("Failed approving the request: {}".format(e))
-        response = {"data":'Successfully Processed the request'}
-        return {'statusCode':'200','body':json.dumps(response)}
+        response = {"data": 'Successfully Processed the request'}
+        return {'statusCode': '200', 'body': json.dumps(response)}
     else:
-        response = {"error":'Mandatory request paramters not found' }
-        return {'statusCode':'200','body':json.dumps(response)}
+        response = {"error": 'Mandatory request parameters not found'}
+        return {'statusCode': '200', 'body': json.dumps(response)}
+
 
 # updates the rejection status in database
 def update_rejection_request_status(request_id):
@@ -101,7 +104,8 @@ def update_rejection_request_status(request_id):
         ReturnValues="UPDATED_NEW"
     )
     logger.debug("UpdateItem succeeded:")
-    logger.debug(json.dumps(response))  
+    logger.debug(json.dumps(response))
+
 
 # Update the status of the request in dynamo-db
 def update_approval_request_status(request_id):
@@ -116,7 +120,8 @@ def update_approval_request_status(request_id):
         ReturnValues="UPDATED_NEW"
     )
     logger.debug("UpdateItem succeeded:")
-    logger.debug(json.dumps(response))      
+    logger.debug(json.dumps(response))
+
 
 # Get the request item for a given request id
 def get_request_item(request_id):
@@ -126,9 +131,10 @@ def get_request_item(request_id):
     )
     return response['Item']
 
+
 # Update the Accruals in database
 def update_accrued_amt(business_entity_id, accrued_forecasted_spend, accrued_blocked_spend, accrued_approved_spend):
-    logger.info("Update the Budget with new accrued amounts Blocked: {}, Forcasted: {}, Approved: {}".format(accrued_blocked_spend, accrued_forecasted_spend, accrued_approved_spend))
+    logger.info("Update the Budget with new accrued amounts Blocked: {}, Forecasted: {}, Approved: {}".format(accrued_blocked_spend, accrued_forecasted_spend, accrued_approved_spend))
     update_expression = "set accruedForecastedSpend=:a, accruedBlockedSpend=:b, accruedApprovedSpend=:c"
     expression_attributes = {
         ':a': accrued_forecasted_spend,
@@ -143,6 +149,7 @@ def update_accrued_amt(business_entity_id, accrued_forecasted_spend, accrued_blo
     )
     logger.info('Successfully Updated accrued Amt for Key: {} with response {}'.format(business_entity_id, response))
     return True
+
 
 # Gets the Budget information for a given business entity Id
 def get_budgets_for_request(business_entity_id):

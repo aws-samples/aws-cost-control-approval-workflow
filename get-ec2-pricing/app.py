@@ -19,25 +19,27 @@
 #
 ################################################################################
 # Reference - https://s3.amazonaws.com/cloudformation-examples/lambda/amilookup.zip
-import boto3
-import simplejson as json
+import calendar
+import datetime
 import logging
 import os
-import requests
-import datetime
-import calendar
 from decimal import Decimal
+
+import boto3
+import requests
+import simplejson as json
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 region = os.environ['AWS_REGION']
+
 
 def lambda_handler(event, context):
     # Do not do anything for CFN Update and Delete
     if 'RequestType' in event and event['RequestType'] != 'Create':
         send_response(event, context, 'SUCCESS', {})
         return
-    
+
     logger.info(json.dumps(event))
     event_payload = event["ResourceProperties"]
     instance_type = event_payload['InstanceType']
@@ -69,6 +71,7 @@ def lambda_handler(event, context):
     return result
     # instCost = Decimal(str(round(Decimal(getHoursLeft()*instCost),2)))
 
+
 # Get total # of hrs for next month
 def hours_for_next_month():
     now = datetime.datetime.utcnow()
@@ -81,23 +84,25 @@ def hours_for_next_month():
         next_month = next_month % 12
     return calendar.monthrange(year, next_month)[1] * 24
 
+
 # Get total # of hrs left in current month
 def hours_left_for_current_month():
     now = datetime.datetime.utcnow()
-    total_hours_in_cur_month = calendar.monthrange(now.year,now.month)[1] * 24
-    hours_consumed_in_cur_month = ((now.day-1) * 24) + now.hour
+    total_hours_in_cur_month = calendar.monthrange(now.year, now.month)[1] * 24
+    hours_consumed_in_cur_month = ((now.day - 1) * 24) + now.hour
     hours_left = total_hours_in_cur_month - hours_consumed_in_cur_month
     return hours_left
 
+
 # Get region code
-def region_lookup(region):
+def region_lookup(region_name):
     lookup = {
         'us-west-1': "US West (N. California)",
         'us-west-2': "US West (Oregon)",
         'us-east-1': "US East (N. Virginia)",
         'us-east-2': "US East (Ohio)",
         'ca-central-1': "Canada (Central)",
-        'ap-south-1':  "Asia Pacific (Mumbai)",
+        'ap-south-1': "Asia Pacific (Mumbai)",
         'ap-northeast-2': "Asia Pacific (Seoul)",
         'ap-southeast-1': "Asia Pacific (Singapore)",
         'ap-southeast-2': "Asia Pacific (Sydney)",
@@ -108,7 +113,8 @@ def region_lookup(region):
         'sa-east-1': "South America (Sao Paulo)",
         'us-gov-west-1': "GovCloud (US)",
     }
-    return lookup.get(region.lower(), "Region Not Found")
+    return lookup.get(region_name.lower(), "Region Not Found")
+
 
 # Send response back to CFN hook about the status of the function
 def send_response(event, context, response_status, response_data):
@@ -128,53 +134,54 @@ def send_response(event, context, response_status, response_data):
         logger.info("Failed executing HTTP request: {}".format(e))
     return False
 
+
 # Function to get the price of the EC2 Instance
-def get_price_from_api(oper_sys, instance_type, region, term_type):
+def get_price_from_api(oper_sys, instance_type, region_name, term_type):
     try:
         pricing = boto3.client('pricing', region_name='us-east-1')
         logger.info("instance: {}".format(instance_type))
-        search_filters=[
-                {
-                    'Type': 'TERM_MATCH',
-                    'Field': 'tenancy',
-                    'Value': 'Shared'
-                },
-                {
-                    'Type': 'TERM_MATCH',
-                    'Field': 'location',
-                    'Value': region_lookup(region)
-                },
-                {
-                    'Type': 'TERM_MATCH',
-                    'Field': 'operatingSystem',
-                    'Value': oper_sys
-                },
-                {
-                    'Type': 'TERM_MATCH',
-                    'Field': 'preInstalledSw',
-                    'Value': 'NA'
-                },
-                {
-                    'Type': 'TERM_MATCH',
-                    'Field': 'termType',
-                    'Value': term_type
-                },
-                {'Type': 'TERM_MATCH', 'Field': 'capacityStatus', 'Value': 'Used'},
-                {
-                    'Type': 'TERM_MATCH',
-                    'Field': 'instanceType',
-                    'Value': instance_type
-                }
+        search_filters = [
+            {
+                'Type': 'TERM_MATCH',
+                'Field': 'tenancy',
+                'Value': 'Shared'
+            },
+            {
+                'Type': 'TERM_MATCH',
+                'Field': 'location',
+                'Value': region_lookup(region_name)
+            },
+            {
+                'Type': 'TERM_MATCH',
+                'Field': 'operatingSystem',
+                'Value': oper_sys
+            },
+            {
+                'Type': 'TERM_MATCH',
+                'Field': 'preInstalledSw',
+                'Value': 'NA'
+            },
+            {
+                'Type': 'TERM_MATCH',
+                'Field': 'termType',
+                'Value': term_type
+            },
+            {'Type': 'TERM_MATCH', 'Field': 'capacityStatus', 'Value': 'Used'},
+            {
+                'Type': 'TERM_MATCH',
+                'Field': 'instanceType',
+                'Value': instance_type
+            }
         ]
         # windows adds an extra license filter
         if 'Windows' in oper_sys:
             search_filters.append({"Type": "TERM_MATCH", "Field": "licenseModel", "Value": "No License required"})
         response = pricing.get_products(
-            ServiceCode='AmazonEC2',        # required
+            ServiceCode='AmazonEC2',  # required
             Filters=search_filters,
-            FormatVersion='aws_v1',         # optional
-            NextToken='',                   # optional
-            MaxResults=20                   # optional
+            FormatVersion='aws_v1',  # optional
+            NextToken='',  # optional
+            MaxResults=20  # optional
         )
         if len(response['PriceList']) > 1:
             logger.info("Pricing list has more than one entry, considering first entry")

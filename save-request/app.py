@@ -18,13 +18,14 @@
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
 ################################################################################
-import boto3
-import requests
 import json
 import logging
-from datetime import datetime
 import os
+from datetime import datetime
 from decimal import Decimal
+
+import boto3
+import requests
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -35,6 +36,7 @@ region = os.environ['AWS_REGION']
 budgets_table_name = os.environ['BudgetsTable']
 dynamodb = boto3.resource('dynamodb', region_name=region)
 budgets_table = dynamodb.Table(budgets_table_name)
+
 
 def lambda_handler(event, context):
     response_data = {'Status': 'Request successfully saved to Dynamo DB'}
@@ -77,12 +79,13 @@ def lambda_handler(event, context):
             'requestPayload': event['ResourceProperties']
         }
         create_approval_req_item(db_item)
-        send_response(event, context,'SUCCESS', response_data)
+        send_response(event, context, 'SUCCESS', response_data)
         return True
     except Exception as e:
         logger.info("Error while saving the request in datatbase, termiante the stack: {}".format(e))
         send_response(event, context, 'FAILED', {})
         return False
+
 
 # Update the status of the request in dynamo-db
 def update_termination_request_status(request_id):
@@ -98,12 +101,12 @@ def update_termination_request_status(request_id):
     requested_amt_monthly = existing_req['Item']['pricingInfoAtRequest']['31DayPrice']
     business_entity_id = existing_req['Item']['businessEntityId']
     request_status = existing_req['Item']['requestStatus']
-    
+
     # if status is pending/rejected/blocked, then deduct from accrued blocked amt
     if len(business_entity_id) > 0 and request_status in ["PENDING", "BLOCKED"]:
         logger.info('Adjusting Accruals since request is in {} state'.format(request_status))
         budget_info = budgets_table.get_item(
-            Key={'partitionKey':budget_parititon_key, 'rangeKey':business_entity_id},
+            Key={'partitionKey': budget_parititon_key, 'rangeKey': business_entity_id},
             ProjectionExpression='accruedBlockedSpend'
         )
         accrued_blocked_spend = budget_info['Item']['accruedBlockedSpend']
@@ -112,7 +115,7 @@ def update_termination_request_status(request_id):
         response = budgets_table.update_item(
             Key={'partitionKey': budget_parititon_key, 'rangeKey': business_entity_id},
             UpdateExpression="set accruedBlockedSpend=:b",
-            ExpressionAttributeValues={':b': accrued_blocked_spend},  
+            ExpressionAttributeValues={':b': accrued_blocked_spend},
             ReturnValues="UPDATED_NEW"
         )
         logger.info("Blocked amount cleared successfully: {}".format(response))
@@ -126,22 +129,24 @@ def update_termination_request_status(request_id):
         expression_attributes[':c'] = 'REJECTED_SYSTEM'
     elif request_status != 'REJECTED_ADMIN':
         update_expression = update_expression + ", requestStatus=:c"
-        expression_attributes[':c'] = request_status+'_TERMINATED'
+        expression_attributes[':c'] = request_status + '_TERMINATED'
     response = budgets_table.update_item(
-        Key={'partitionKey': partition_key, 'rangeKey':request_id},
+        Key={'partitionKey': partition_key, 'rangeKey': request_id},
         UpdateExpression=update_expression,
         ExpressionAttributeValues=expression_attributes,
         ReturnValues="UPDATED_NEW"
     )
     logger.debug("UpdateItem succeeded:")
-    logger.debug(json.dumps(response)) 
+    logger.debug(json.dumps(response))
     return True
+
 
 # Create a request in database
 def create_approval_req_item(db_item):
     response = budgets_table.put_item(Item=db_item)
     logger.debug("CreateItem succeeded:")
     logger.debug(json.dumps(response))
+
 
 # Send response to CFN
 def send_response(event, context, response_status, response_data):

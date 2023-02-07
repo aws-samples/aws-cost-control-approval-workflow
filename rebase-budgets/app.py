@@ -20,11 +20,12 @@
 ################################################################################
 import json
 import logging
-import boto3
 import os
 from datetime import datetime
-from boto3.dynamodb.conditions import Key
 from decimal import Decimal
+
+import boto3
+from boto3.dynamodb.conditions import Key
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -36,6 +37,7 @@ partition_key = 'BUDGET'
 req_partition_key = 'REQUEST'
 client = boto3.client('budgets')
 
+
 def lambda_handler(event, context):
     logger.info(json.dumps(event))
     account_id = os.environ['AccountId']
@@ -43,7 +45,7 @@ def lambda_handler(event, context):
         # Fetch available business units from database
         business_entities = get_business_entities()
         # Check for request from S3
-        if 'Records' in event: 
+        if 'Records' in event:
             for record in event['Records']:
                 key = record['s3']['object']['key']
                 # Look for manifest file only, it may be the case that there are multiple files uploaded by CUR
@@ -61,23 +63,25 @@ def lambda_handler(event, context):
                         forecast_spend = Decimal(budget_info['Budget']['CalculatedSpend']['ForecastedSpend']['Amount'])
                         # Reset accrued_forcasted_spend whenever there is a budget update from AWS
                         update_pricing_info(range_key, budget_name, budget_amt, actual_spend, forecast_spend)
-            return {'statusCode':'200', 'body': 'Successfully rebased accruedForecastSpend'}
+            return {'statusCode': '200', 'body': 'Successfully rebased accruedForecastSpend'}
         # Monthly rebase of accruedApprovalSpend
-        elif 'source' in event and event['source'] == 'aws.events': 
+        elif 'source' in event and event['source'] == 'aws.events':
             logger.info("Event received from CloudWatchRule")
             for entity in business_entities:
                 logger.info("Reset accruedApprovedSpend for business entity {}".format(entity))
                 budget_name = entity['budgetName']
                 range_key = entity['rangeKey']
-                reset_accrued_approved_amt(range_key,budget_name)
+                reset_accrued_approved_amt(range_key, budget_name)
             return {'statusCode': '200', 'body': 'Successfully rebased AccruedApproval Amount'}
     except Exception as e:
         logger.error(e)
         return {'statusCode': '500', 'body': e}
 
+
 # Reset Accruals in database
 def reset_accrued_approved_amt(range_key, budget_name):
-    logger.info("Resetting the accruedApprovedSpent at beginning of the month for business entity id {}".format(range_key))
+    logger.info(
+        "Resetting the accruedApprovedSpent at beginning of the month for business entity id {}".format(range_key))
     response = budgets_table.update_item(
         Key={'partitionKey': partition_key, 'rangeKey': range_key},
         UpdateExpression="set accruedApprovedSpend=:a",
@@ -86,6 +90,7 @@ def reset_accrued_approved_amt(range_key, budget_name):
     )
     logger.info('Updated Pricing Info for Budget: {} with response {}'.format(budget_name, response))
     return True
+
 
 # Update pricing information for given business entity
 def update_pricing_info(range_key, budget_name, budget_limit, actual_spend, forcasted_spend):
@@ -104,6 +109,7 @@ def update_pricing_info(range_key, budget_name, budget_limit, actual_spend, forc
     logger.info('Updated Pricing Info for Budget: {} with response {}'.format(budget_name, response))
     return True
 
+
 # Get all budget information for all business entities
 def get_business_entities():
     response = budgets_table.query(
@@ -112,11 +118,13 @@ def get_business_entities():
     )
     logger.info("Business Entities fetched from DB")
     return response['Items']
-    
+
+
 # Get budget details for a given account and budget name
 def get_budget_details(account_id, budget_name):
     response = client.describe_budget(AccountId=account_id, BudgetName=budget_name)
     return response
+
 
 # Get requests by state
 def get_requests(request_state):
