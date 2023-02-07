@@ -30,7 +30,7 @@ import requests
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 partition_key = 'REQUEST'
-budget_parititon_key = 'BUDGET'
+budget_partition_key = 'BUDGET'
 api_gw_url = os.environ['ApprovalUrl']
 region = os.environ['AWS_REGION']
 budgets_table_name = os.environ['BudgetsTable']
@@ -106,14 +106,14 @@ def update_termination_request_status(request_id):
     if len(business_entity_id) > 0 and request_status in ["PENDING", "BLOCKED"]:
         logger.info('Adjusting Accruals since request is in {} state'.format(request_status))
         budget_info = budgets_table.get_item(
-            Key={'partitionKey': budget_parititon_key, 'rangeKey': business_entity_id},
+            Key={'partitionKey': budget_partition_key, 'rangeKey': business_entity_id},
             ProjectionExpression='accruedBlockedSpend'
         )
         accrued_blocked_spend = budget_info['Item']['accruedBlockedSpend']
         accrued_blocked_spend = accrued_blocked_spend - requested_amt_monthly
         logger.info("Clear the blocked amt if exists")
         response = budgets_table.update_item(
-            Key={'partitionKey': budget_parititon_key, 'rangeKey': business_entity_id},
+            Key={'partitionKey': budget_partition_key, 'rangeKey': business_entity_id},
             UpdateExpression="set accruedBlockedSpend=:b",
             ExpressionAttributeValues={':b': accrued_blocked_spend},
             ReturnValues="UPDATED_NEW"

@@ -36,7 +36,7 @@ dynamodb = boto3.resource('dynamodb', region_name=region)
 budgets_table = dynamodb.Table(budgets_table_name)
 sns = boto3.resource('sns')
 budgets_partition_key = 'BUDGET'
-requests_parition_key = 'REQUEST'
+requests_partition_key = 'REQUEST'
 saved_req_status = 'SAVED'
 pending_req_status = 'PENDING'
 blocked_req_status = 'BLOCKED'
@@ -267,7 +267,7 @@ def update_request_status(request_id, request_status, busines_entity_id):
         expression_attributes[':d'] = 'ACTIVE'
 
     response = budgets_table.update_item(
-        Key={'partitionKey': requests_parition_key, 'rangeKey': request_id},
+        Key={'partitionKey': requests_partition_key, 'rangeKey': request_id},
         UpdateExpression=update_expression,
         ExpressionAttributeValues=expression_attributes,
         ReturnValues="UPDATED_NEW")
