@@ -221,6 +221,9 @@ venv.bak/
 !.vscode/extensions.json
 .history
 
+### PyCharm ###
+.idea/
+
 ### Windows ###
 # Windows thumbnail cache files
 Thumbs.db
