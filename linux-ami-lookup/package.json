@@ -1,5 +1,5 @@
 {
-  "name": "linux-ami-lookup",
+  "name": "@aws-samples/linux-ami-lookup",
   "version": "1.0.0",
   "description": "lambda function used to lookup a linux ec2 instance ami id",
   "main": "index.js"
